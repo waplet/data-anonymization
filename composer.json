@@ -1,0 +1,11 @@
+{
+    "require": {
+        "illuminate/database": "^5.2",
+        "fzaninotto/Faker": "^1.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Maris\\": "src/"
+        }
+    }
+}
