@@ -48,6 +48,9 @@ class Manager
             }
             $this->capsule->addConnection($config, $key);
         }
+
+        // So only arrays fetched
+        $this->capsule->setFetchMode(\PDO::FETCH_ASSOC);
         $this->capsule->setAsGlobal();
         return $this;
     }
@@ -55,7 +58,8 @@ class Manager
     public function table($name, callable $callback)
     {
         $anonymizer = new Anonymizer($name, $callback);
-        $this->tableChanges[$name] = $anonymizer;
+        $this->tableChanges[$name] = $anonymizer->run();
+
         return $this;
     }
 
@@ -68,19 +72,67 @@ class Manager
         // foreach table changes
         // add missing tables to the destination
         foreach($this->tableChanges as $tableName => $_) {
-                if(!$this->capsule->schema('base')->hasTable($tableName)) {
-                    unset($this->tableChanges[$tableName]);
-                    continue;
-                }
-                if($this->capsule->schema('destination')->hasTable($tableName)) {
-                    continue;
-                }
+            /*
+             * If there is base table, skip it.
+             */
+            if(!$this->capsule->schema('base')->hasTable($tableName)) {
+                unset($this->tableChanges[$tableName]);
+                continue;
+            }
+            if($this->capsule->schema('destination')->hasTable($tableName)) {
+                continue;
+            }
 
-            $createTableSql = $this->getCapsule('base')->selectOne('SHOW CREATE TABLE ' . $this->getCapsule('base')->getTablePrefix() . $tableName)->{'Create Table'};
+            $createTableSql = $this->getCapsule('base')->selectOne('SHOW CREATE TABLE ' . $this->getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
             $createTableSql = str_replace("CREATE TABLE `" . $this->getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . $this->getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
             $this->getCapsule('destination')->statement($createTableSql);
         }
 
         return $this;
+    }
+
+    public function run()
+    {
+        foreach($this->tableChanges as $table => $anonymizer) {
+            $this->applyChanges($anonymizer);
+        }
+    }
+
+    protected function applyChanges(Anonymizer $anonymizer)
+    {
+        // Sets capsule so connection and data gathering could be made
+        $anonymizer->setCapsule($this->capsule);
+        // Collumn Callbacks for each row
+        $columnCallbacks = $anonymizer->getColumnCallbacks();
+        // Run callbacks which prepare data for columns
+        $anonymizer->runPrepare();
+
+        // Gets data from base tables
+        $data = $this->capsule->table($anonymizer->table, 'base')->get();
+        //prd($anonymizer->getColumnCallbacks());
+        //prd($columnCallbacks);
+
+        // Does all the anonimization as specified in Anonymizer
+        foreach($data as &$row) {
+            foreach($row as $column => &$value) {
+                if(array_key_exists($column, $columnCallbacks)) {
+                    foreach($columnCallbacks[$column] as $callback) {
+                        $callback($value);
+                    }
+                }
+            }
+        }
+
+        // Converts array of objects to array of arrays
+        $this->capsule->table($anonymizer->table, 'destination')->truncate();
+        $this->capsule->table($anonymizer->table, 'destination')->insert($data);
+    }
+
+    protected function dataToArray(&$data) {
+        foreach($data as &$value) {
+            if(is_object($value)) {
+                $value = (array)$value;
+            }
+        }
     }
 }

@@ -32,3 +32,14 @@ $capsules['information_schema'] = [
     'collation' => 'utf8_general_ci',
     'prefix' => '',
 ];
+
+function pr($input) {
+    echo "<pre>";
+    print_r($input);
+    echo "</pre>";
+}
+
+function prd($input) {
+    pr($input);
+    die;
+}
