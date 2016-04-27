@@ -14,14 +14,12 @@ $manager->setInformationSchema($capsules['information_schema']);
 $manager->init()
     ->table('base', function (Anonymizer $anonymizer) {
 
+        $anonymizer->truncateDestinationTable(true);
         $anonymizer->setPrimary('id');
-        $anonymizer->column('name')->replaceWith('test');
-        //$anonymizer->column('name')->replaceWith(function (\Faker\Generator $generator) {
-        //    return $generator->email;
-        //});
-    })
-    ->table('test_not_working', function(Anonymizer $anonymizer) {
-        return;
+        //$anonymizer->column('name')->replaceWith('test');
+        $anonymizer->column('name')->replaceWith(function (\Faker\Generator $faker) {
+            return $faker->email;
+        });
     })
     ->prepareTable()
     ->run();

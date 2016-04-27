@@ -7,30 +7,73 @@ use Illuminate\Database\Capsule\Manager as Capsule;
 
 class Anonymizer
 {
-    protected $callback;
+    /**
+     * Table's name on which happening anonymization
+     * @var string
+     */
+    public $table;
+
     /**
      * @var Capsule
      */
     protected $capsule;
-    public $table;
     protected $currentColumn = null;
     protected $columnCallbacks = [];
+    /**
+     * Callback for preparing data
+     * @var array
+     */
     protected $prepareCallbacks = [];
-    public $columnData = [];
+    /**
+     * Place where goes prepared data
+     * @var array
+     */
+    protected $columnData = [];
+
+    /**
+     * Primary key constraint
+     * @var array
+     */
     protected $primaryKey = [];
 
     /**
-     * Generator object (e.g faker).
+     * Faker object (e.g faker).
      *
      * @var mixed
      */
-    protected $generator;
+    protected $faker;
 
-    public function __construct($table, callable $callback, $generator = null)
+    public function __construct($table, $faker = null)
     {
         $this->table = $table;
-        $this->callback = $callback;
-        $this->setGenerator($generator);
+        $this->setFaker($faker);
+    }
+
+    public function setCapsule(Capsule $capsule)
+    {
+        $this->capsule = $capsule;
+        return $this;
+    }
+
+    public function getCapsule()
+    {
+        return $this->capsule;
+    }
+
+    /**
+     * Sets Faker object
+     * @param $faker
+     * @return $this
+     */
+    public function setFaker($faker)
+    {
+        if ($faker !== null) {
+            $this->faker = $faker;
+        }
+        if (class_exists('\Faker\Factory')) {
+            $this->faker = Factory::create();
+        }
+        return $this;
     }
 
     /**
@@ -59,36 +102,11 @@ class Anonymizer
         $this->currentColumn = null;
         return $this;
     }
-    public function setPrimary($key = array('id'))
-    {
-        if(is_string($key)) {
-            $key = [$key];
-        }
-        $this->primaryKey = $key;
-    }
 
-    public function setGenerator($generator)
-    {
-        if ($generator !== null) {
-            $this->generator = $generator;
-        }
-        if (class_exists('\Faker\Factory')) {
-            $this->generator = Factory::create();
-        }
-        return $this;
-    }
-
-    public function setCapsule(Capsule $capsule)
-    {
-        $this->capsule = $capsule;
-        return $this;
-    }
-
-    public function getCapsule()
-    {
-        return $this->capsule;
-    }
-
+    /**
+     * Get all callbacks
+     * @return array
+     */
     public function getColumnCallbacks()
     {
         /**
@@ -101,10 +119,31 @@ class Anonymizer
         return $this->columnCallbacks;
     }
 
-
-    public function run()
+    /**
+     * Sets primary key constraint
+     * @param array $key
+     * @return $this
+     */
+    public function setPrimary($key = array('id'))
     {
-        $callback = $this->callback;
+        if(is_string($key)) {
+            $key = [$key];
+        }
+        $this->primaryKey = $key;
+
+        // TODO: Add afterPrepare callbacks to remove column callback which are as a constraint
+        // call smthing like $this->setConstraint($this->primaryKey);
+        return $this;
+    }
+
+    /**
+     * Run the callback on self
+     * where is defined all the anonimization functionality
+     * @param callable $callback
+     * @return $this
+     */
+    public function init(callable $callback)
+    {
         $callback($this);
 
         return $this;
@@ -115,12 +154,18 @@ class Anonymizer
         foreach($this->prepareCallbacks as $prepare) {
             $prepare();
         }
+
+        return $this;
     }
 
     /**
      * All the possible functions which creates callbacks
      */
 
+    /**
+     * Conversion that does nothing
+     * @return $this
+     */
     public function doNothing()
     {
         return $this;
@@ -134,7 +179,7 @@ class Anonymizer
     {
         if(is_callable($replace)) {
             $this->currentColumn['callbacks'][] = function (&$value) use ($replace) {
-                $value = call_user_func($replace, $this->generator);
+                $value = call_user_func($replace, $this->faker);
             };
         } else {
             $this->currentColumn['callbacks'][] = function (&$value) use ($replace) {
@@ -144,11 +189,23 @@ class Anonymizer
 
         return $this;
     }
+
+    /**
+     * Prepares unique values of column values and then takes randomly selected value for each row
+     * @return $this
+     */
     public function shuffleUnique()
     {
         $currentColumnName = $this->currentColumn['name'];
         $this->currentColumn['prepare_callbacks'][] = function () use ($currentColumnName) {
-            $this->columnData[$currentColumnName] = $this->objectArrayToArray($this->capsule->getConnection('base')->table($this->table)->select($currentColumnName)->distinct()->get(), $currentColumnName);
+            $this->columnData[$currentColumnName] = Helper::arrayToPrimarizedArray(
+                $this->getCapsule()
+                    ->getConnection('base')
+                    ->table($this->table)
+                    ->select($currentColumnName)
+                    ->distinct()
+                    ->get(),
+                $currentColumnName);
         };
 
         $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName) {
@@ -159,43 +216,81 @@ class Anonymizer
         return $this;
     }
 
+    /**
+     * Prepares all values into array and shuffles O(n)
+     * When row is callbacked() it just pop last value of array which takes O(1) for each row.
+     * @return $this
+     */
     public function shuffleAll()
     {
         $currentColumnName = $this->currentColumn['name'];
         $this->currentColumn['prepare_callbacks'][] = function () use ($currentColumnName) {
-
-            $this->columnData[$currentColumnName] = $this->objectArrayToArray($this->capsule->getConnection('base')->table($this->table)->select($currentColumnName)->get(), $currentColumnName);
+            // TODO: remake
+            $this->columnData[$currentColumnName] = Helper::arrayToPrimarizedArray(
+                $this->getCapsule()
+                    ->getConnection('base')
+                    ->table($this->table)
+                    ->select($currentColumnName)
+                    ->get(),
+                $currentColumnName);
             shuffle($this->columnData[$currentColumnName]);
         };
 
         $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName) {
-            $value = array_pop($this->columnData[$currentColumnName]); // O(1)
+            $value = array_pop($this->columnData[$currentColumnName]);
         };
 
         return $this;
     }
 
-
-    protected function objectArrayToArray($array, $columnName, $primaryKey = []) {
-        $result = array();
-
-        foreach($array as $key => $val) {
-            if($primaryKey) {
-                $result[$this->compact($primaryKey)] = $val->{$columnName};
-            } else {
-                $result[] = $val->{$columnName};
-            }
-        }
-
-        return $result;
+    /**
+     * TODO: implement usage of manually defined function
+     * @param callable $function
+     * @return $this
+     */
+    public function shuffleCallable(callable $function)
+    {
+        return $this;
     }
 
     /**
-     * @param array $values
-     * @return string of concatenated values
+     * Add some noise to integer values
+     * @param $amplitude
+     * @return $this
      */
-    protected function compact(array $values)
+    public function noise($amplitude)
     {
-        return implode("_", $values);
+        $currentColumnName = $this->currentColumn['name'];
+        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName, $amplitude) {
+            $value += mt_rand(0, $amplitude * 2) - $amplitude; // +- amplitude
+        };
+
+        return $this;
+    }
+
+    /**
+     * Add relative noise to integer values
+     * @param float $percents
+     * @return $this
+     */
+    public function relativeNoise($percents)
+    {
+        if($percents < 0 || $percents > 1) {
+            $percents = 0.0;
+        }
+
+        $currentColumnName = $this->currentColumn['name'];
+
+        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName, $percents) {
+                $value += mt_rand(0, 1) ? ($value * (1.0 + $percents)) : ($value * (1.0 - $percents));
+        };
+
+        return $this;
+    }
+
+    public function setConstraints(array $constraints)
+    {
+        // TODO Implement feature of setting constraint which cannot change during iteration
+        return $this;
     }
 }

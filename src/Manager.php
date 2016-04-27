@@ -57,8 +57,8 @@ class Manager
 
     public function table($name, callable $callback)
     {
-        $anonymizer = new Anonymizer($name, $callback);
-        $this->tableChanges[$name] = $anonymizer->run();
+        $anonymizer = new Anonymizer($name);
+        $this->tableChanges[$name] = $anonymizer->init($callback);
 
         return $this;
     }
@@ -83,7 +83,8 @@ class Manager
                 continue;
             }
 
-            $createTableSql = $this->getCapsule('base')->selectOne('SHOW CREATE TABLE ' . $this->getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
+            $createTableSql = $this->getCapsule('base')
+                ->selectOne('SHOW CREATE TABLE ' . $this->getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
             $createTableSql = str_replace("CREATE TABLE `" . $this->getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . $this->getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
             $this->getCapsule('destination')->statement($createTableSql);
         }
@@ -113,12 +114,14 @@ class Manager
         //prd($columnCallbacks);
 
         // Does all the anonimization as specified in Anonymizer
+        // This is the bottleneck
         foreach($data as &$row) {
-            foreach($row as $column => &$value) {
-                if(array_key_exists($column, $columnCallbacks)) {
-                    foreach($columnCallbacks[$column] as $callback) {
-                        $callback($value);
-                    }
+            foreach($row as $columnName => &$value) {
+                if(!array_key_exists($columnName, $columnCallbacks)) {
+                    continue;
+                }
+                foreach($columnCallbacks[$columnName] as $callback) {
+                    $callback($value);
                 }
             }
         }
