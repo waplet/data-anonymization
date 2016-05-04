@@ -4,14 +4,17 @@ namespace Maris;
 
 use Faker\Factory;
 use Illuminate\Database\Capsule\Manager as Capsule;
+use Maris\Anonymizer\Functions;
 
 class Anonymizer
 {
+    use Functions;
     /**
      * Table's name on which happening anonymization
      * @var string
      */
     public $table;
+    protected $isTruncateDestination;
 
     /**
      * @var Capsule
@@ -24,6 +27,16 @@ class Anonymizer
      * @var array
      */
     protected $prepareCallbacks = [];
+
+    /**
+     * TODO: Refactor callbacks
+     */
+    protected $callbacks = [
+        'prepare' => [],
+        'beforeColumn' => [],
+        'column' => [],
+        'after'  => []
+    ];
     /**
      * Place where goes prepared data
      * @var array
@@ -89,7 +102,6 @@ class Anonymizer
         $this->currentColumn = [
             'name' => $name,
             'callbacks' => [],
-            'prepare_callbacks' => []
         ];
 
         return $this;
@@ -97,8 +109,7 @@ class Anonymizer
 
     public function populateColumns()
     {
-        $this->columnCallbacks[$this->currentColumn['name']] = $this->currentColumn['callbacks'];
-        $this->prepareCallbacks = array_merge($this->prepareCallbacks, $this->currentColumn['prepare_callbacks']);
+        $this->callbacks = array_merge($this->callbacks, $this->currentColumn['callbacks']);
         $this->currentColumn = null;
         return $this;
     }
@@ -107,7 +118,7 @@ class Anonymizer
      * Get all callbacks
      * @return array
      */
-    public function getColumnCallbacks()
+    public function getCallbacks()
     {
         /**
          * If last column still left as column, populate it to overall columns
@@ -116,7 +127,7 @@ class Anonymizer
             $this->populateColumns();
         }
 
-        return $this->columnCallbacks;
+        return $this->callbacks;
     }
 
     /**
@@ -149,148 +160,14 @@ class Anonymizer
         return $this;
     }
 
-    public function runPrepare()
+    public function truncateDestinationTable($bool = false)
     {
-        foreach($this->prepareCallbacks as $prepare) {
-            $prepare();
-        }
-
+        $this->isTruncateDestination = $bool;
         return $this;
     }
 
-    /**
-     * All the possible functions which creates callbacks
-     */
-
-    /**
-     * Conversion that does nothing
-     * @return $this
-     */
-    public function doNothing()
+    public function getTruncateDestinationTable()
     {
-        return $this;
-    }
-
-    /**
-     * @param $replace
-     * @return $this
-     */
-    public function replaceWith($replace)
-    {
-        if(is_callable($replace)) {
-            $this->currentColumn['callbacks'][] = function (&$value) use ($replace) {
-                $value = call_user_func($replace, $this->faker);
-            };
-        } else {
-            $this->currentColumn['callbacks'][] = function (&$value) use ($replace) {
-                $value = $replace;
-            };
-        }
-
-        return $this;
-    }
-
-    /**
-     * Prepares unique values of column values and then takes randomly selected value for each row
-     * @return $this
-     */
-    public function shuffleUnique()
-    {
-        $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['prepare_callbacks'][] = function () use ($currentColumnName) {
-            $this->columnData[$currentColumnName] = Helper::arrayToPrimarizedArray(
-                $this->getCapsule()
-                    ->getConnection('base')
-                    ->table($this->table)
-                    ->select($currentColumnName)
-                    ->distinct()
-                    ->get(),
-                $currentColumnName);
-        };
-
-        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName) {
-            $count = count($this->columnData[$currentColumnName]);
-            $value = $this->columnData[$currentColumnName][rand(0, $count - 1)];
-        };
-
-        return $this;
-    }
-
-    /**
-     * Prepares all values into array and shuffles O(n)
-     * When row is callbacked() it just pop last value of array which takes O(1) for each row.
-     * @return $this
-     */
-    public function shuffleAll()
-    {
-        $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['prepare_callbacks'][] = function () use ($currentColumnName) {
-            // TODO: remake
-            $this->columnData[$currentColumnName] = Helper::arrayToPrimarizedArray(
-                $this->getCapsule()
-                    ->getConnection('base')
-                    ->table($this->table)
-                    ->select($currentColumnName)
-                    ->get(),
-                $currentColumnName);
-            shuffle($this->columnData[$currentColumnName]);
-        };
-
-        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName) {
-            $value = array_pop($this->columnData[$currentColumnName]);
-        };
-
-        return $this;
-    }
-
-    /**
-     * TODO: implement usage of manually defined function
-     * @param callable $function
-     * @return $this
-     */
-    public function shuffleCallable(callable $function)
-    {
-        return $this;
-    }
-
-    /**
-     * Add some noise to integer values
-     * @param $amplitude
-     * @return $this
-     */
-    public function noise($amplitude)
-    {
-        $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName, $amplitude) {
-            $value += mt_rand(0, $amplitude * 2) - $amplitude; // +- amplitude
-        };
-
-        return $this;
-    }
-
-    /**
-     * Add relative noise to integer values
-     * @param float $percents
-     * @return $this
-     */
-    public function relativeNoise($percents)
-    {
-        if($percents < 0 || $percents > 1) {
-            $percents = 0.0;
-        }
-
-        $currentColumnName = $this->currentColumn['name'];
-
-        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName, $percents) {
-                $value += mt_rand(0, 1) ? ($value * (1.0 + $percents)) : ($value * (1.0 - $percents));
-        };
-
-        return $this;
-    }
-
-    public function setConstraints(array $constraints)
-    {
-        // TODO Implement feature of setting constraint which cannot change during iteration
-        return $this;
+        return $this->isTruncateDestination;
     }
 }

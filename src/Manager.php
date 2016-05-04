@@ -3,7 +3,9 @@
 namespace Maris;
 
 
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Database\Schema\Blueprint;
+use Maris\Anonymizer\RowModifier;
 
 class Manager
 {
@@ -73,16 +75,40 @@ class Manager
         // add missing tables to the destination
         foreach($this->tableChanges as $tableName => $_) {
             /*
-             * If there is base table, skip it.
+             * If there is no base table, skip it.
              */
             if(!$this->capsule->schema('base')->hasTable($tableName)) {
                 unset($this->tableChanges[$tableName]);
                 continue;
             }
+
             if($this->capsule->schema('destination')->hasTable($tableName)) {
-                continue;
+                /*
+                 * If base and destination columns do not fit
+                 */
+                $tableDiff = $this->getCapsule('information_schema')
+                    ->table('COLUMNS as c')
+                    ->selectRaw('SUM(IF(c2.COLUMN_NAME IS NULL, 1, 0)) as diff')
+                    ->join('COLUMNS as c2', function(JoinClause $join) use ($tableName) {
+                        $join->type = 'LEFT';
+                        $join->on('c2.COLUMN_NAME', '=', 'c.COLUMN_NAME');
+                        $join->where('c2.TABLE_NAME', '=', $this->getCapsule('destination')->getTablePrefix() . $tableName);
+                    })
+                    ->where('c.TABLE_NAME', '=', $this->getCapsule('base')->getTablePrefix() . $tableName)
+                    ->value('diff');
+                if(!$tableDiff) {
+                    continue;
+                }
+
+                /**
+                 * Dropping old table which are not correct
+                 */
+                $this->getCapsule('destination')->getSchemaBuilder()->drop($tableName);
             }
 
+            /**
+             * Creating new table based on real one
+             */
             $createTableSql = $this->getCapsule('base')
                 ->selectOne('SHOW CREATE TABLE ' . $this->getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
             $createTableSql = str_replace("CREATE TABLE `" . $this->getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . $this->getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
@@ -104,30 +130,30 @@ class Manager
         // Sets capsule so connection and data gathering could be made
         $anonymizer->setCapsule($this->capsule);
         // Collumn Callbacks for each row
-        $columnCallbacks = $anonymizer->getColumnCallbacks();
+        $callbacks = $anonymizer->getCallbacks();
+
+        //prd($callbacks['column']['number'][0]);
         // Run callbacks which prepare data for columns
-        $anonymizer->runPrepare();
+        $rowModifier = new RowModifier($callbacks);
+        $rowModifier->runPrepareCallbacks();
 
         // Gets data from base tables
         $data = $this->capsule->table($anonymizer->table, 'base')->get();
-        //prd($anonymizer->getColumnCallbacks());
-        //prd($columnCallbacks);
 
-        // Does all the anonimization as specified in Anonymizer
+        // Does all the anonymization as specified in Anonymizer
         // This is the bottleneck
+        /**
+         * @var array $row
+         */
         foreach($data as &$row) {
-            foreach($row as $columnName => &$value) {
-                if(!array_key_exists($columnName, $columnCallbacks)) {
-                    continue;
-                }
-                foreach($columnCallbacks[$columnName] as $callback) {
-                    $callback($value);
-                }
-            }
+            $row = $rowModifier->setRow($row)->run()->getRow();
         }
 
         // Converts array of objects to array of arrays
-        $this->capsule->table($anonymizer->table, 'destination')->truncate();
+        pr($data);
+        if($anonymizer->getTruncateDestinationTable()) {
+            $this->capsule->table($anonymizer->table, 'destination')->truncate();
+        }
         $this->capsule->table($anonymizer->table, 'destination')->insert($data);
     }
 
