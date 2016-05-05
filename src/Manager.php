@@ -159,28 +159,33 @@ class Manager
 
         // Gets data from base tables
         $data = self::getCapsule()->table($anonymizer->table, 'base')->get();
-
-        // Does all the anonymization as specified in Anonymizer
-        // This is the bottleneck
-        /**
-         * @var array $row
-         */
-        foreach($data as &$row) {
-            $row = $rowModifier->setRow($row)->run()->getRow();
-            if(!$anonymizer->getTruncateDestinationTable()) {
-                if(count($anonymizer->getPrimary()) != 1) {
-                    throw new \ErrorException("Primary can't be constraint if no table truncation");
-                } else {
-                    unset($row[array_pop($anonymizer->getPrimary())]);
+        try
+        {
+            // Does all the anonymization as specified in Anonymizer
+            // This is the bottleneck
+            foreach($data as &$row) {
+                $row = $rowModifier->setRow($row)->run()->getRow();
+                if(!$anonymizer->getTruncateDestinationTable()) {
+                    if(count($anonymizer->getPrimary()) > 1) {
+                        throw new \ErrorException("Primary can't be constraint if no table truncation");
+                    } else {
+                        unset($row[array_pop($anonymizer->getPrimary())]);
+                    }
                 }
             }
-        }
 
-        // Converts array of objects to array of arrays
-        if($anonymizer->getTruncateDestinationTable()) {
-            self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
+            // Converts array of objects to array of arrays
+            if($anonymizer->getTruncateDestinationTable()) {
+                self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
+            }
+            self::getCapsule()->table($anonymizer->table, 'destination')->insert($data);
         }
-        self::getCapsule()->table($anonymizer->table, 'destination')->insert($data);
+        catch (\Exception $ex)
+        {
+            print("Something went wrong - " . $ex->getMessage());
+            error_log($ex->getMessage());
+            die;
+        }
     }
 
     protected function dataToArray(&$data) {
