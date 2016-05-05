@@ -7,22 +7,22 @@ class RowModifier
     /**
      * @var array
      */
-    protected $columnData = null;
+    public $columnData = null;
 
     /**
      * @var array|null
      */
-    protected $callbacks = null;
+    public $callbacks = null;
 
     /**
      * @var string
      */
-    private $currentColumn = null;
+    public $currentColumn = null;
 
     /**
      * @var array
     */
-    protected $row = null;
+    public $row = null;
 
     public function __construct(array $callbacks = [])
     {
@@ -62,6 +62,11 @@ class RowModifier
         return $this;
     }
 
+    public function getCurrentColumn()
+    {
+        return $this->currentColumn;
+    }
+
     public function setColumnValue($column, $value)
     {
         $this->row[$column] = $value;
@@ -82,7 +87,7 @@ class RowModifier
     public function runPrepareCallbacks()
     {
         foreach($this->callbacks['prepare'] as $prepare) {
-            $prepare();
+            $prepare($this);
         }
 
         return $this;

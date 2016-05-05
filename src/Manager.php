@@ -9,7 +9,10 @@ use Maris\Anonymizer\RowModifier;
 
 class Manager
 {
-    protected $capsule = null;
+    /**
+     * @var \Illuminate\Database\Capsule\Manager
+     */
+    protected static $capsule = null;
     protected $capsuleConfig = [
         'base' => null,
         'destination' => null,
@@ -17,9 +20,12 @@ class Manager
     ];
     protected $tableChanges = array();
 
+    protected $timeStart = null;
+    protected $timeSpent = 0;
+
     public function __construct(\Illuminate\Database\Capsule\Manager $capsule)
     {
-        $this->capsule = $capsule;
+        self::setCapsule($capsule);
     }
 
     public function setPrimary(array $connection)
@@ -37,9 +43,23 @@ class Manager
         $this->capsuleConfig['information_schema'] = $connection;
     }
 
-    public function getCapsule($connection)
+    /**
+     * @param $connection
+     * @return \Illuminate\Database\Connection|\Illuminate\Database\Capsule\Manager
+     */
+    public static function getCapsule($connection = null)
     {
-        return $this->capsule->getConnection($connection);
+        if(!$connection) {
+            return self::$capsule;
+        }
+        return self::$capsule->getConnection($connection);
+    }
+
+    public static function setCapsule(\Illuminate\Database\Capsule\Manager  $capsule)
+    {
+        if(!self::$capsule) {
+            self::$capsule = $capsule;
+        }
     }
 
     public function init()
@@ -48,12 +68,12 @@ class Manager
             if($config == null) {
                 throw new \ErrorException("Incorrect state of configs");
             }
-            $this->capsule->addConnection($config, $key);
+            self::$capsule->addConnection($config, $key);
         }
 
         // So only arrays fetched
-        $this->capsule->setFetchMode(\PDO::FETCH_ASSOC);
-        $this->capsule->setAsGlobal();
+        self::$capsule->setFetchMode(\PDO::FETCH_ASSOC);
+        self::$capsule->setAsGlobal();
         return $this;
     }
 
@@ -77,12 +97,12 @@ class Manager
             /*
              * If there is no base table, skip it.
              */
-            if(!$this->capsule->schema('base')->hasTable($tableName)) {
+            if(!self::getCapsule()->schema('base')->hasTable($tableName)) {
                 unset($this->tableChanges[$tableName]);
                 continue;
             }
 
-            if($this->capsule->schema('destination')->hasTable($tableName)) {
+            if(self::getCapsule()->schema('destination')->hasTable($tableName)) {
                 /*
                  * If base and destination columns do not fit
                  */
@@ -110,8 +130,8 @@ class Manager
              * Creating new table based on real one
              */
             $createTableSql = $this->getCapsule('base')
-                ->selectOne('SHOW CREATE TABLE ' . $this->getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
-            $createTableSql = str_replace("CREATE TABLE `" . $this->getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . $this->getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
+                ->selectOne('SHOW CREATE TABLE ' . self::getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
+            $createTableSql = str_replace("CREATE TABLE `" . self::getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . self::getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
             $this->getCapsule('destination')->statement($createTableSql);
         }
 
@@ -120,25 +140,25 @@ class Manager
 
     public function run()
     {
+        $this->startTime();
         foreach($this->tableChanges as $table => $anonymizer) {
             $this->applyChanges($anonymizer);
         }
+        $this->endTime();
+        return $this;
     }
 
     protected function applyChanges(Anonymizer $anonymizer)
     {
-        // Sets capsule so connection and data gathering could be made
-        $anonymizer->setCapsule($this->capsule);
-        // Collumn Callbacks for each row
+        // Column Callbacks for each row
         $callbacks = $anonymizer->getCallbacks();
 
-        //prd($callbacks['column']['number'][0]);
         // Run callbacks which prepare data for columns
         $rowModifier = new RowModifier($callbacks);
         $rowModifier->runPrepareCallbacks();
 
         // Gets data from base tables
-        $data = $this->capsule->table($anonymizer->table, 'base')->get();
+        $data = self::getCapsule()->table($anonymizer->table, 'base')->get();
 
         // Does all the anonymization as specified in Anonymizer
         // This is the bottleneck
@@ -147,14 +167,20 @@ class Manager
          */
         foreach($data as &$row) {
             $row = $rowModifier->setRow($row)->run()->getRow();
+            if(!$anonymizer->getTruncateDestinationTable()) {
+                if(count($anonymizer->getPrimary()) != 1) {
+                    throw new \ErrorException("Primary can't be constraint if no table truncation");
+                } else {
+                    unset($row[array_pop($anonymizer->getPrimary())]);
+                }
+            }
         }
 
         // Converts array of objects to array of arrays
-        pr($data);
         if($anonymizer->getTruncateDestinationTable()) {
-            $this->capsule->table($anonymizer->table, 'destination')->truncate();
+            self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
         }
-        $this->capsule->table($anonymizer->table, 'destination')->insert($data);
+        self::getCapsule()->table($anonymizer->table, 'destination')->insert($data);
     }
 
     protected function dataToArray(&$data) {
@@ -163,5 +189,21 @@ class Manager
                 $value = (array)$value;
             }
         }
+    }
+
+    private function startTime()
+    {
+        $this->timeStart = microtime(true);
+    }
+
+    private function endTime()
+    {
+        $this->timeSpent = microtime(true) - $this->timeStart;
+        $this->startTime();
+    }
+
+    public function printTime()
+    {
+        print("Total time spent: " . round($this->timeSpent,6) . " ms");
     }
 }

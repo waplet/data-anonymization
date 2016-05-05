@@ -19,7 +19,7 @@ class Anonymizer
     /**
      * @var Capsule
      */
-    protected $capsule;
+    protected static $capsule;
     protected $currentColumn = null;
     protected $columnCallbacks = [];
     /**
@@ -33,9 +33,9 @@ class Anonymizer
      */
     protected $callbacks = [
         'prepare' => [],
-        'beforeColumn' => [],
+        //'beforeColumn' => [],
         'column' => [],
-        'after'  => []
+        //'after'  => []
     ];
     /**
      * Place where goes prepared data
@@ -60,17 +60,6 @@ class Anonymizer
     {
         $this->table = $table;
         $this->setFaker($faker);
-    }
-
-    public function setCapsule(Capsule $capsule)
-    {
-        $this->capsule = $capsule;
-        return $this;
-    }
-
-    public function getCapsule()
-    {
-        return $this->capsule;
     }
 
     /**
@@ -109,7 +98,7 @@ class Anonymizer
 
     public function populateColumns()
     {
-        $this->callbacks = array_merge($this->callbacks, $this->currentColumn['callbacks']);
+        $this->callbacks = array_merge_recursive($this->callbacks, $this->currentColumn['callbacks']);
         $this->currentColumn = null;
         return $this;
     }
@@ -135,16 +124,20 @@ class Anonymizer
      * @param array $key
      * @return $this
      */
-    public function setPrimary($key = array('id'))
+    public function setPrimary($key = ['id'])
     {
         if(is_string($key)) {
             $key = [$key];
         }
         $this->primaryKey = $key;
 
-        // TODO: Add afterPrepare callbacks to remove column callback which are as a constraint
-        // call smthing like $this->setConstraint($this->primaryKey);
+        $this->column(array_pop(array_reverse($this->primaryKey)))->setUniqueConstraints($this->primaryKey);
         return $this;
+    }
+
+    public function getPrimary()
+    {
+        return $this->primaryKey;
     }
 
     /**

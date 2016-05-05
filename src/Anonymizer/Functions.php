@@ -2,8 +2,10 @@
 
 namespace Maris\Anonymizer;
 
+use Maris\Anonymizer;
 use Maris\Anonymizer\RowModifier;
 use Maris\Helper;
+use Maris\Manager;
 
 trait Functions
 {
@@ -62,20 +64,19 @@ trait Functions
     public function shuffleUnique()
     {
         $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['prepare_callbacks'][] = function () use ($currentColumnName) {
-            $this->columnData[$currentColumnName] = Helper::arrayToPrimarizedArray(
-                $this->getCapsule()
-                    ->getConnection('base')
-                    ->table($this->table)
-                    ->select($currentColumnName)
-                    ->distinct()
-                    ->get(),
-                $currentColumnName);
+        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use ($currentColumnName) {
+            $row->columnData[$currentColumnName] = Manager::getCapsule()
+                ->getConnection('base')
+                ->table($this->table)
+                ->select($currentColumnName)
+                ->distinct()
+                ->get();
+            shuffle($row->columnData[$currentColumnName]);
         };
 
-        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName) {
-            $count = count($this->columnData[$currentColumnName]);
-            $value = $this->columnData[$currentColumnName][rand(0, $count - 1)];
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column){
+            $count = count($column->columnData[$column->getCurrentColumn()]);
+            $column->setValue($column->columnData[$column->getCurrentColumn()][mt_rand(0, $count - 1)]);
         };
 
         return $this;
@@ -89,20 +90,17 @@ trait Functions
     public function shuffleAll()
     {
         $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['prepare_callbacks'][] = function () use ($currentColumnName) {
-            // TODO: remake
-            $this->columnData[$currentColumnName] = Helper::arrayToPrimarizedArray(
-                $this->getCapsule()
-                    ->getConnection('base')
-                    ->table($this->table)
-                    ->select($currentColumnName)
-                    ->get(),
-                $currentColumnName);
-            shuffle($this->columnData[$currentColumnName]);
+        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use ($currentColumnName) {
+            $row->columnData[$currentColumnName] = Manager::getCapsule()
+                ->getConnection('base')
+                ->table($this->table)
+                ->select($currentColumnName)
+                ->get();
+            shuffle($row->columnData[$currentColumnName]);
         };
 
-        $this->currentColumn['callbacks'][] = function (&$value) use ($currentColumnName) {
-            $value = array_pop($this->columnData[$currentColumnName]);
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($currentColumnName) {
+            $column->setValue(array_pop($this->columnData[$currentColumnName]));
         };
 
         return $this;
@@ -151,23 +149,52 @@ trait Functions
     }
 
     /**
-     * @param array $constraints
+     * @param array $columns
      * @return $this
      */
-    public function setConstraints(array $constraints)
+    public function setUniqueConstraints(array $columns)
     {
-        // TODO Implement feature of setting constraint which cannot change during iteration
         $currentColumnName = $this->currentColumn['name'];
-        $constraintName = Helper::compact(array($this->currentColumn['name'], $constraints));
-        $this->currentColumn['callbacks']['prepare'][] = function() use ($constraintName, $currentColumnName) {
-            // TODO: implement this sh'it
+        $constraint = array_merge(array($currentColumnName), $columns);
+        $this->currentColumn['callbacks']['prepare'][] = function(RowModifier $row) use ($constraint, $currentColumnName) {
+            $rows = Manager::getCapsule()
+                ->getConnection('base')
+                ->table($this->table)
+                ->select($constraint)
+                ->get();
+            shuffle($rows);
+
+            /**
+             * Init empty columns for constraint
+             */
+            foreach($constraint as $column) {
+                $row->columnData[$column] = []; // init
+            }
+
+            /**
+             * Populate columnData with shuffled value but still maintaining constraint
+             */
+            foreach($rows as $item) {
+                foreach($constraint as $column) {
+                    $row->columnData[$column][] = $item[$column];
+                }
+            }
+
+            /**
+             * Remove all calculation which may affect constraint
+             * except current ones which makes constraint possible
+             */
+            foreach($constraint as $column) {
+                if(!array_key_exists($column, $row->callbacks['column']) || $column == $currentColumnName) {
+                    continue;
+                }
+                unset($row->callbacks['column'][$column]);
+            }
         };
 
-        $this->currentColumn['callbacks']['column'][] = function(&$value, RowModifier $row) use ($constraintName, $constraints, $currentColumnName) {
-            $value = $this->columnData[$constraintName][$currentColumnName];
-
-            foreach($constraints as $constraintColumn) {
-                $row->setColumnValue($constraintName, $this->columnData[$constraintName][$constraintColumn]);
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function(RowModifier $row) use ($constraint) {
+            foreach ($constraint as $column) {
+                $row->setColumnValue($column, array_pop($row->columnData[$column]));
             }
         };
 
