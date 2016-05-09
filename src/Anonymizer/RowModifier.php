@@ -5,9 +5,10 @@ namespace Maris\Anonymizer;
 class RowModifier
 {
     /**
+     * Place where goes prepared data
      * @var array
      */
-    public $columnData = null;
+    public $columnData = [];
 
     /**
      * @var array|null

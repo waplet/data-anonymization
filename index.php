@@ -14,7 +14,7 @@ $manager->setInformationSchema($capsules['information_schema']);
 $manager->init()
     ->table('kursa_darbs', function (Anonymizer $anonymizer) {
     //->table('base', function (Anonymizer $anonymizer) {
-        $anonymizer->truncateDestinationTable(true);
+        $anonymizer->setTruncateDestinationTable(true);
         $anonymizer->setPrimary(['id']);
         //$anonymizer->column('name')->nullify(false);
         //$anonymizer->column('name')->shuffleUnique();

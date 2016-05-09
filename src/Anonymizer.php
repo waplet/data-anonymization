@@ -14,22 +14,25 @@ class Anonymizer
      * @var string
      */
     public $table;
-    protected $isTruncateDestination;
+
+    /**
+     * @var bool
+     */
+    protected $truncateDestination = true;
 
     /**
      * @var Capsule
      */
     protected static $capsule;
-    protected $currentColumn = null;
-    protected $columnCallbacks = [];
     /**
-     * Callback for preparing data
+     * Data about current managed column
      * @var array
      */
-    protected $prepareCallbacks = [];
+    protected $currentColumn = null;
 
     /**
-     * TODO: Refactor callbacks
+     * All the callbacks
+     * @var array
      */
     protected $callbacks = [
         'prepare' => [],
@@ -37,11 +40,6 @@ class Anonymizer
         'column' => [],
         //'after'  => []
     ];
-    /**
-     * Place where goes prepared data
-     * @var array
-     */
-    protected $columnData = [];
 
     /**
      * Primary key constraint
@@ -131,7 +129,10 @@ class Anonymizer
         }
         $this->primaryKey = $key;
 
-        $this->column(array_pop(array_reverse($this->primaryKey)))->setUniqueConstraints($this->primaryKey, false);
+
+        if(count($this->primaryKey) > 1) {
+            $this->column(array_pop(array_reverse($this->primaryKey)))->setUniqueConstraints($this->primaryKey, false);
+        }
         return $this;
     }
 
@@ -153,14 +154,14 @@ class Anonymizer
         return $this;
     }
 
-    public function truncateDestinationTable($bool = false)
+    public function setTruncateDestinationTable($bool = true)
     {
-        $this->isTruncateDestination = $bool;
+        $this->truncateDestination = $bool;
         return $this;
     }
 
-    public function getTruncateDestinationTable()
+    public function isTruncateDestinationTable()
     {
-        return $this->isTruncateDestination;
+        return $this->truncateDestination;
     }
 }
