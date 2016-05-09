@@ -131,7 +131,7 @@ class Anonymizer
         }
         $this->primaryKey = $key;
 
-        $this->column(array_pop(array_reverse($this->primaryKey)))->setUniqueConstraints($this->primaryKey);
+        $this->column(array_pop(array_reverse($this->primaryKey)))->setUniqueConstraints($this->primaryKey, false);
         return $this;
     }
 

@@ -70,7 +70,7 @@ trait Functions
                 ->table($this->table)
                 ->select($currentColumnName)
                 ->distinct()
-                ->get();
+                ->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
         };
 
@@ -95,12 +95,12 @@ trait Functions
                 ->getConnection('base')
                 ->table($this->table)
                 ->select($currentColumnName)
-                ->get();
+                ->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
         };
 
         $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($currentColumnName) {
-            $column->setValue(array_pop($this->columnData[$currentColumnName]));
+            $column->setValue(array_pop($column->columnData[$currentColumnName]));
         };
 
         return $this;
@@ -150,19 +150,22 @@ trait Functions
 
     /**
      * @param array $columns
+     * @param bool $shuffle
      * @return $this
      */
-    public function setUniqueConstraints(array $columns)
+    public function setUniqueConstraints(array $columns, $shuffle = true)
     {
         $currentColumnName = $this->currentColumn['name'];
         $constraint = array_merge(array($currentColumnName), $columns);
-        $this->currentColumn['callbacks']['prepare'][] = function(RowModifier $row) use ($constraint, $currentColumnName) {
+        $this->currentColumn['callbacks']['prepare'][] = function(RowModifier $row) use ($constraint, $currentColumnName, $shuffle) {
             $rows = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
                 ->select($constraint)
                 ->get();
-            shuffle($rows);
+            if($shuffle) {
+                shuffle($rows);
+            }
 
             /**
              * Init empty columns for constraint
