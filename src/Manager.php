@@ -161,35 +161,88 @@ class Manager
         $data = self::getCapsule()->table($anonymizer->table, 'base')->get();
         try
         {
-            $primaryKeyCount = count($anonymizer->getPrimary());
-
             // Does all the anonymization as specified in Anonymizer
             // This is the bottleneck
             /**
              * @var array $row
              */
             foreach($data as &$row) {
-                $row = $rowModifier->setRow($row)->run()->getRow();
-                if(!$anonymizer->isTruncateDestinationTable() && $anonymizer->isInsert()) {
-                    if($primaryKeyCount > 1) {
-                        throw new \ErrorException("Primary can't be constraint if no table truncation");
-                    } else {
-                        unset($row[array_pop($anonymizer->getPrimary())]);
-                    }
-                }
+                $row = $rowModifier->setRow($row)
+                    ->run()
+                    ->getRow();
             }
 
             //prd($data);
-            // Converts array of objects to array of arrays
+            /**
+             * Truncation
+             */
             if($anonymizer->isTruncateDestinationTable()) {
                 self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
             }
 
             /**
-             * if updating db and no truncation,
-             * must be primary key defined
+             * Database related changes
              */
-            if(!$anonymizer->isInsert() && !$anonymizer->isTruncateDestinationTable() && $primaryKeyCount) {
+            if($anonymizer->isInsert()) {
+                $this->doInsert($anonymizer, $data);
+            } else {
+                $this->doUpdate($anonymizer, $data);
+            }
+        }
+        catch (\Exception $ex)
+        {
+            print("Something went wrong - " . $ex->getMessage());
+            error_log($ex->getMessage());
+            die;
+        }
+    }
+
+    protected function doInsert(Anonymizer $anonymizer, $data)
+    {
+        //insert
+        //1) isTruncateTable -> legit;
+        //2) !isTruncateTable ->
+        //    2.a) count primary > 1 throw new exception
+        //    2.b)  unset primary
+        if(!$anonymizer->isTruncateDestinationTable()) {
+            if(count($anonymizer->getPrimary()) > 1) {
+                throw new \ErrorException("Primary can't be constraint if no table truncation");
+            } else {
+                $singlePrimaryKey = array_pop($anonymizer->getPrimary());
+                if($singlePrimaryKey) {
+                    foreach($data as &$row) {
+                        unset($row[$singlePrimaryKey]);
+                    }
+                }
+            }
+        }
+
+        self::getCapsule('destination')
+            ->table($anonymizer->table)
+            ->insert($data);
+    }
+
+    protected function doUpdate(Anonymizer $anonymizer, $data)
+    {
+        //update
+        //1) isTruncate -> insert
+        //2) !isTruncate -> update by primary <=> updateOrInsert
+        if($anonymizer->isTruncateDestinationTable()) {
+            /**
+             * May delete primary keys, but not necessary
+             */
+            //self::getCapsule('destination')
+            //    ->table($anonymizer->table)
+            //    ->insert($data);
+            $this->doInsert($anonymizer, $data); // will avoid whole if in insert
+        } else {
+            /**
+             * https://laracasts.com/forum/?p=649-bulk-insert-update/p1#p3308
+             */
+            self::getCapsule('destination')->transaction(function () use ($data, $anonymizer) {
+                /**
+                 * @var array $row
+                 */
                 foreach($data as &$row) {
                     $table = self::getCapsule()->table($anonymizer->table, 'destination');
                     $attributes = [];
@@ -199,15 +252,7 @@ class Manager
                     }
                     $table->updateOrInsert($attributes, $row);
                 }
-            } else {
-                self::getCapsule()->table($anonymizer->table, 'destination')->insert($data);
-            }
-        }
-        catch (\Exception $ex)
-        {
-            print("Something went wrong - " . $ex->getMessage());
-            error_log($ex->getMessage());
-            die;
+            });
         }
     }
 
