@@ -170,7 +170,7 @@ class Manager
              */
             foreach($data as &$row) {
                 $row = $rowModifier->setRow($row)->run()->getRow();
-                if(!$anonymizer->isTruncateDestinationTable()) {
+                if(!$anonymizer->isTruncateDestinationTable() && $anonymizer->isInsert()) {
                     if($primaryKeyCount > 1) {
                         throw new \ErrorException("Primary can't be constraint if no table truncation");
                     } else {
@@ -179,11 +179,29 @@ class Manager
                 }
             }
 
+            //prd($data);
             // Converts array of objects to array of arrays
             if($anonymizer->isTruncateDestinationTable()) {
                 self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
             }
-            self::getCapsule()->table($anonymizer->table, 'destination')->insert($data);
+
+            /**
+             * if updating db and no truncation,
+             * must be primary key defined
+             */
+            if(!$anonymizer->isInsert() && !$anonymizer->isTruncateDestinationTable() && $primaryKeyCount) {
+                foreach($data as &$row) {
+                    $table = self::getCapsule()->table($anonymizer->table, 'destination');
+                    $attributes = [];
+                    foreach($anonymizer->getPrimary() as $key) {
+                        $attributes[$key] = $row[$key];
+                        unset($row[$key]);
+                    }
+                    $table->updateOrInsert($attributes, $row);
+                }
+            } else {
+                self::getCapsule()->table($anonymizer->table, 'destination')->insert($data);
+            }
         }
         catch (\Exception $ex)
         {
