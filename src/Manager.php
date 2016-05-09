@@ -231,6 +231,9 @@ class Manager
             /**
              * May delete primary keys, but not necessary
              */
+            /**
+             * Comment out and remove if doInsert does not fit;
+             */
             //self::getCapsule('destination')
             //    ->table($anonymizer->table)
             //    ->insert($data);
