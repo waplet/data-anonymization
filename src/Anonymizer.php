@@ -21,6 +21,12 @@ class Anonymizer
     protected $truncateDestination = true;
 
     /**
+     * Insert or Update database
+     * @var bool
+     */
+    protected $insert = true;
+
+    /**
      * @var Capsule
      */
     protected static $capsule;
@@ -163,5 +169,23 @@ class Anonymizer
     public function isTruncateDestinationTable()
     {
         return $this->truncateDestination;
+    }
+
+    /**
+     * @param bool $insert
+     * @return Anonymizer
+     */
+    public function setInsert($insert = true)
+    {
+        $this->insert = $insert;
+        return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isInsert()
+    {
+        return $this->insert;
     }
 }
