@@ -12,13 +12,19 @@ $manager->setDestination($capsules['destination']);
 $manager->setInformationSchema($capsules['information_schema']);
 
 $manager->init()
-    ->table('kursa_darbs', function (Anonymizer $anonymizer) {
-    //->table('base', function (Anonymizer $anonymizer) {
-        $anonymizer->setTruncateDestinationTable(true);
+    //->table('kursa_darbs', function (Anonymizer $anonymizer) {
+    ->table('base', function (Anonymizer $anonymizer) {
+        $anonymizer->setTruncateDestinationTable(true)
+            ->setInsert(false)
+            ->setChunkSize(4);
+            //->setOffset(0)
+        ;
         $anonymizer->setPrimary(['id']);
+        //$anonymizer->setPrimary(['id', 'name']);
         //$anonymizer->column('name')->nullify(false);
         //$anonymizer->column('name')->shuffleUnique();
-        //$anonymizer->column('name')->shuffleAll();
+        //$anonymizer->column('number')->shuffleAll();
+        $anonymizer->column('number')->shuffleAll();
         //$anonymizer->column('name')->replaceWith('test');
         //$anonymizer->column('name')->replaceWith(function (\Faker\Generator $faker) {
         //    return $faker->email;

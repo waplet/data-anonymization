@@ -158,21 +158,8 @@ class Manager
         $rowModifier->runPrepareCallbacks();
 
         // Gets data from base tables
-        $data = self::getCapsule()->table($anonymizer->table, 'base')->get();
         try
         {
-            // Does all the anonymization as specified in Anonymizer
-            // This is the bottleneck
-            /**
-             * @var array $row
-             */
-            foreach($data as &$row) {
-                $row = $rowModifier->setRow($row)
-                    ->run()
-                    ->getRow();
-            }
-
-            //prd($data);
             /**
              * Truncation
              */
@@ -180,14 +167,50 @@ class Manager
                 self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
             }
 
-            /**
-             * Database related changes
-             */
-            if($anonymizer->isInsert()) {
-                $this->doInsert($anonymizer, $data);
-            } else {
-                $this->doUpdate($anonymizer, $data);
-            }
+            do {
+
+                $table = self::getCapsule('base')
+                    ->table($anonymizer->table);
+
+                if($anonymizer->getChunkSize()) {
+                    $table->limit($anonymizer->getChunkSize())
+                        ->offset($anonymizer->getOffset());
+                }
+                $data = $table->get();
+                if(!$data) {
+                    break;
+                }
+
+                $rowModifier->runPrepareChunkedCallbacks();
+
+                // Does all the anonymization as specified in Anonymizer
+                // This is the bottleneck
+                /**
+                 * @var array $row
+                 */
+                pr("Data before callbacking");
+                pr($data);
+                foreach($data as &$row) {
+                    $row = $rowModifier->setRow($row)
+                        ->run()
+                        ->getRow();
+                }
+
+                pr("Data after callbacking");
+                pr($data);
+                /**
+                 * Database related changes
+                 */
+                //if($anonymizer->isInsert()) {
+                //    $this->doInsert($anonymizer, $data);
+                //} else {
+                //    $this->doUpdate($anonymizer, $data);
+                //}
+                $anonymizer->incrementOffset();
+            } while (
+                ($anonymizer->getCount() && $anonymizer->getCount() > $anonymizer->getOffset())
+                    || $data
+            );
         }
         catch (\Exception $ex)
         {

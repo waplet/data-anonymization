@@ -14,6 +14,26 @@ class Anonymizer
      * @var string
      */
     public $table;
+    /**
+     * Offset and count related variables for row reading
+     */
+
+    /**
+     * Size chunk as limit
+     * Capsule's limit is checked for values > 0
+     * @var int
+     */
+    protected $chunkSize = 0;
+    /**
+     * Defined total count of rows to read
+     * @var int
+     */
+    protected $count = 0;
+    /**
+     * Offset for each chunk iteration
+     * @var int
+     */
+    protected $offset = 0;
 
     /**
      * @var bool
@@ -42,6 +62,7 @@ class Anonymizer
      */
     protected $callbacks = [
         'prepare' => [],
+        'prepareChunked' => [],
         //'beforeColumn' => [],
         'column' => [],
         //'after'  => []
@@ -187,5 +208,69 @@ class Anonymizer
     public function isInsert()
     {
         return $this->insert;
+    }
+
+    /**
+     * @param int $chunkSize
+     * @return Anonymizer
+     */
+    public function setChunkSize($chunkSize)
+    {
+        $this->chunkSize = $chunkSize;
+        return $this;
+    }
+
+    /**
+     * Last chunk size must fit count if defined
+     * @return int
+     */
+    public function getChunkSize()
+    {
+
+        if($this->getCount() && $this->getOffset() + $this->chunkSize > $this->getCount()) {
+            return $this->getCount() - $this->getOffset();
+        }
+        return $this->chunkSize;
+    }
+
+    /**
+     * @param int $count
+     * @return Anonymizer
+     */
+    public function setCount($count)
+    {
+        $this->count = $count;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getCount()
+    {
+        return $this->count;
+    }
+
+    /**
+     * @param int $offset
+     * @return Anonymizer
+     */
+    public function setOffset($offset)
+    {
+        $this->offset = $offset;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getOffset()
+    {
+        return $this->offset;
+    }
+
+    public function incrementOffset()
+    {
+        $this->offset += $this->chunkSize;
     }
 }

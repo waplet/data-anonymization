@@ -85,17 +85,23 @@ trait Functions
     /**
      * Prepares all values into array and shuffles O(n)
      * When row is callbacked() it just pop last value of array which takes O(1) for each row.
+     * Shuffle all is easily shuffled with chunks
      * @return $this
      */
     public function shuffleAll()
     {
         $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use ($currentColumnName) {
-            $row->columnData[$currentColumnName] = Manager::getCapsule()
+        $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
+        $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use ($currentColumnName) {
+            $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
-                ->select($currentColumnName)
-                ->pluck($currentColumnName);
+                ->select($currentColumnName);
+            if($this->getChunkSize()) {
+                $model->limit($this->getChunkSize())
+                    ->offset($this->getOffset());
+            }
+            $row->columnData[$currentColumnName] = $model->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
         };
 
@@ -156,15 +162,27 @@ trait Functions
     public function setUniqueConstraints(array $columns, $shuffle = true)
     {
         $currentColumnName = $this->currentColumn['name'];
+        $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
         $constraint = array_merge(array($currentColumnName), $columns);
-        $this->currentColumn['callbacks']['prepare'][] = function(RowModifier $row) use ($constraint, $currentColumnName, $shuffle) {
-            $rows = Manager::getCapsule()
+        $this->currentColumn['callbacks'][$prepareType][] = function(RowModifier $row) use ($constraint, $currentColumnName, $shuffle) {
+            $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
-                ->select($constraint)
-                ->get();
+                ->select($constraint);
+            if($this->getChunkSize()) {
+                $model->limit($this->getChunkSize())
+                    ->offset($this->getOffset());
+            }
+                $rows = $model->get();
+
             if($shuffle) {
                 shuffle($rows);
+            } else {
+                /**
+                 * If no shuffling, so to maintain order with array_pop'ing involved later
+                 * We should reverse the array now
+                 */
+                $rows = array_reverse($rows);
             }
 
             /**

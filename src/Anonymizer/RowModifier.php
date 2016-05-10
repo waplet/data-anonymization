@@ -94,6 +94,15 @@ class RowModifier
         return $this;
     }
 
+    public function runPrepareChunkedCallbacks()
+    {
+        foreach($this->callbacks['prepareChunked'] as $prepare) {
+            $prepare($this);
+        }
+
+        return $this;
+    }
+
     private function _executeCallbacks($type, $column = null)
     {
         if(array_key_exists($type, $this->callbacks)) {
