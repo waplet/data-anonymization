@@ -59,18 +59,23 @@ trait Functions
 
     /**
      * Prepares unique values of column values and then takes randomly selected value for each row
+     * @param bool $forceChunked
      * @return $this
      */
-    public function shuffleUnique()
+    public function shuffleUnique($forceChunked = false)
     {
         $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use ($currentColumnName) {
-            $row->columnData[$currentColumnName] = Manager::getCapsule()
+        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use ($currentColumnName, $forceChunked) {
+            $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
                 ->select($currentColumnName)
-                ->distinct()
-                ->pluck($currentColumnName);
+                ->distinct();
+            if($forceChunked && $this->getChunkSize()) {
+                $model->limit($this->getChunkSize())
+                    ->offset($this->getOffset());
+            }
+            $row->columnData[$currentColumnName] = $model->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
         };
 
