@@ -3,8 +3,6 @@
 namespace Maris\Anonymizer;
 
 use Maris\Anonymizer;
-use Maris\Anonymizer\RowModifier;
-use Maris\Helper;
 use Maris\Manager;
 
 trait Functions
@@ -224,6 +222,19 @@ trait Functions
             }
         };
 
+        return $this;
+    }
+
+    /**
+     * replace an observed value with the average computed on a small group of units (small aggregate or micro-aggregate),
+     * including the investigated one.
+     * The units belonging to the same group will be represented in the released file by the same value..
+     * http://neon.vb.cbs.nl/casc/mu.htm
+     *
+     * @return $this
+     */
+    public function chunkedAggregation()
+    {
         return $this;
     }
 }
