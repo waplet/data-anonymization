@@ -46,11 +46,7 @@ class Anonymizer
      * @var bool
      */
     protected $insert = true;
-
-    /**
-     * @var Capsule
-     */
-    protected static $capsule;
+    
     /**
      * Data about current managed column
      * @var array

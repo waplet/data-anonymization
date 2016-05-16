@@ -115,12 +115,13 @@ trait Functions
     }
 
     /**
-     * TODO: implement usage of manually defined function
-     * @param callable $function
+     * As long as you understand Anonymizer you may write any calculation you want
+     * @param callable $callback
      * @return $this
      */
-    public function shuffleCallable(callable $function)
+    public function shuffleCallable(callable $callback)
     {
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = $callback;
         return $this;
     }
 
@@ -237,6 +238,27 @@ trait Functions
      */
     public function chunkedAggregation()
     {
+        $currentColumnName = $this->currentColumn['name'];
+        $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
+        $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use ($currentColumnName) {
+
+            $subModel = Manager::getCapsule()
+                ->getConnection('base')
+                ->table($this->table);
+            $this->prepareTableWithLimits($subModel);
+
+            $model = Manager::getCapsule()
+                ->getConnection('base')
+                ->table(Manager::getCapsule('base')->raw('(' . $subModel->toSql() . ') as sub'))
+                ->selectRaw('AVG(' . $currentColumnName . ') as average');
+
+            $row->columnData[$currentColumnName] = $model->pluck('average')[0];
+        };
+
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($currentColumnName) {
+            $column->setValue($column->columnData[$currentColumnName]);
+        };
+
         return $this;
     }
 }

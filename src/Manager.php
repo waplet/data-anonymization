@@ -74,6 +74,7 @@ class Manager
         // So only arrays fetched
         self::$capsule->setFetchMode(\PDO::FETCH_ASSOC);
         self::$capsule->setAsGlobal();
+        self::$capsule->connection('base')->enableQueryLog();
         return $this;
     }
 
@@ -87,6 +88,8 @@ class Manager
 
     /**
      * Creates missing tables in destination schema
+     * TODO: Add different DBMS supports (PostgreSQL, MSSQL, SQLite, ..)
+     * Currently works only on mysql
      * @return $this
      */
     public function prepareTable()
