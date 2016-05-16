@@ -214,6 +214,10 @@ trait Functions
             }
         };
 
+        /**
+         * Constraint is being populated back
+         * @param RowModifier $row
+         */
         $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function(RowModifier $row) use ($constraint) {
             foreach ($constraint as $column) {
                 $row->setColumnValue($column, array_pop($row->columnData[$column]));
