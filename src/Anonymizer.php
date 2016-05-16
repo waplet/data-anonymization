@@ -4,6 +4,7 @@ namespace Maris;
 
 use Faker\Factory;
 use Illuminate\Database\Capsule\Manager as Capsule;
+use Illuminate\Database\Query\Builder;
 use Maris\Anonymizer\Functions;
 
 class Anonymizer
@@ -177,6 +178,7 @@ class Anonymizer
     public function init(callable $callback)
     {
         $callback($this);
+        $this->fixCount();
 
         return $this;
     }
@@ -297,5 +299,39 @@ class Anonymizer
         }
 
         return $table;
+    }
+
+    /**
+     * Add limit and offset for queries
+     * @param Builder $table
+     */
+    public function prepareTableWithLimits(Builder $table) {
+
+        if($this->getChunkSize()) {
+            $chunkSize = $this->getChunkSize();
+            $offset = $this->getOffset();
+
+            if($this->getCount()) {
+                if($chunkSize + $offset > $this->getCount()) {
+                    $chunkSize = $this->getCount() - ($offset);
+                }
+            }
+
+            $table->limit($chunkSize)
+                ->offset($offset);
+        }
+
+        return;
+    }
+
+    /**
+     * This fixes beginning count with offset
+     * Being run when Anonymizer is initiated
+     * return $this
+     */
+    public function fixCount()
+    {
+        $this->setCount($this->getOffset() + $this->getCount());
+        return $this;
     }
 }

@@ -100,10 +100,9 @@ trait Functions
                 ->getConnection('base')
                 ->table($this->table)
                 ->select($currentColumnName);
-            if($this->getChunkSize()) {
-                $model->limit($this->getChunkSize())
-                    ->offset($this->getOffset());
-            }
+
+            $this->prepareTableWithLimits($model);
+
             $row->columnData[$currentColumnName] = $model->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
         };
@@ -172,11 +171,10 @@ trait Functions
                 ->getConnection('base')
                 ->table($this->table)
                 ->select($constraint);
-            if($this->getChunkSize()) {
-                $model->limit($this->getChunkSize())
-                    ->offset($this->getOffset());
-            }
-                $rows = $model->get();
+
+            $this->prepareTableWithLimits($model);
+
+            $rows = $model->get();
 
             if($shuffle) {
                 shuffle($rows);
