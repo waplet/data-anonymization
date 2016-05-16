@@ -242,15 +242,22 @@ trait Functions
         $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
         $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use ($currentColumnName) {
 
-            $subModel = Manager::getCapsule()
-                ->getConnection('base')
-                ->table($this->table);
-            $this->prepareTableWithLimits($subModel);
+            if($this->getChunkSize()) {
+                $subModel = Manager::getCapsule()
+                    ->getConnection('base')
+                    ->table($this->table);
+                $this->prepareTableWithLimits($subModel);
 
-            $model = Manager::getCapsule()
-                ->getConnection('base')
-                ->table(Manager::getCapsule('base')->raw('(' . $subModel->toSql() . ') as sub'))
-                ->selectRaw('AVG(' . $currentColumnName . ') as average');
+                $model = Manager::getCapsule()
+                    ->getConnection('base')
+                    ->table(Manager::getCapsule('base')->raw('(' . $subModel->toSql() . ') as sub'))
+                    ->selectRaw('AVG(' . $currentColumnName . ') as average');
+            } else {
+                $model = Manager::getCapsule()
+                    ->getConnection('base')
+                    ->table($this->table)
+                    ->selectRaw('AVG(' . $currentColumnName . ') as average');
+            }
 
             $row->columnData[$currentColumnName] = $model->pluck('average')[0];
         };

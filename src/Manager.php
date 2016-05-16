@@ -187,7 +187,6 @@ class Manager
                  * @var array $row
                  */
                 //pr("Data before callbacking");
-                pr($data);
                 $rowCount = 0;
                 foreach($data as &$row) {
                     $row = $rowModifier->setRow($row)
@@ -195,6 +194,7 @@ class Manager
                         ->getRow();
                     $rowCount++;
                 }
+                pr($data);
 
                 /**
                  * Database related changes
