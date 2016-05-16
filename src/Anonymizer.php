@@ -226,10 +226,6 @@ class Anonymizer
      */
     public function getChunkSize()
     {
-
-        if($this->getCount() && $this->getOffset() + $this->chunkSize > $this->getCount()) {
-            return $this->getCount() - $this->getOffset();
-        }
         return $this->chunkSize;
     }
 
@@ -240,6 +236,9 @@ class Anonymizer
     public function setCount($count)
     {
         $this->count = $count;
+        if(!$this->getChunkSize()) {
+            $this->setChunkSize($this->count);
+        }
         return $this;
     }
 
@@ -269,8 +268,34 @@ class Anonymizer
         return $this->offset;
     }
 
-    public function incrementOffset()
+    public function incrementOffset($number = null)
     {
-        $this->offset += $this->chunkSize;
+        if($this->getChunkSize()) {
+            $this->offset += $this->chunkSize;
+        } else {
+            $this->offset += $number;
+        }
+    }
+
+    public function prepareBaseTable()
+    {
+        $table = Manager::getCapsule('base')
+            ->table($this->table);
+
+        if($this->getChunkSize()) {
+            $chunkSize = $this->getChunkSize();
+            $offset = $this->getOffset();
+
+            if($this->getCount()) {
+                if($chunkSize + $offset > $this->getCount()) {
+                    $chunkSize = $this->getCount() - ($offset);
+                }
+            }
+
+            $table->limit($chunkSize)
+                ->offset($offset);
+        }
+
+        return $table;
     }
 }

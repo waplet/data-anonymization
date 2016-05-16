@@ -169,14 +169,9 @@ class Manager
 
             do {
 
-                $table = self::getCapsule('base')
-                    ->table($anonymizer->table);
-
-                if($anonymizer->getChunkSize()) {
-                    $table->limit($anonymizer->getChunkSize())
-                        ->offset($anonymizer->getOffset());
-                }
+                $table = $anonymizer->prepareBaseTable();
                 $data = $table->get();
+
                 if(!$data) {
                     break;
                 }
@@ -188,16 +183,16 @@ class Manager
                 /**
                  * @var array $row
                  */
-                pr("Data before callbacking");
+                //pr("Data before callbacking");
                 pr($data);
+                $rowCount = 0;
                 foreach($data as &$row) {
                     $row = $rowModifier->setRow($row)
                         ->run()
                         ->getRow();
+                    $rowCount++;
                 }
 
-                pr("Data after callbacking");
-                pr($data);
                 /**
                  * Database related changes
                  */
@@ -206,10 +201,12 @@ class Manager
                 //} else {
                 //    $this->doUpdate($anonymizer, $data);
                 //}
-                $anonymizer->incrementOffset();
+
+                $anonymizer->incrementOffset($rowCount);
             } while (
-                ($anonymizer->getCount() && $anonymizer->getCount() > $anonymizer->getOffset())
-                    || $data
+                $data   // has data
+                    && ($anonymizer->getCount() || $anonymizer->getChunkSize()) // and has count or chunksize
+                    && (!$anonymizer->getCount() || $anonymizer->getCount() && $anonymizer->getCount() > $anonymizer->getOffset()) // and don't have count or count is greater than offset
             );
         }
         catch (\Exception $ex)
