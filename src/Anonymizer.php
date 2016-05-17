@@ -46,7 +46,13 @@ class Anonymizer
      * @var bool
      */
     protected $insert = true;
-    
+
+    /**
+     * Whether or not the table should be checked
+     * "unshuffled" data
+     * @var bool
+     */
+    protected $checkTable = false;
     /**
      * Data about current managed column
      * @var array
@@ -329,5 +335,34 @@ class Anonymizer
     {
         $this->setCount($this->getOffset() + $this->getCount());
         return $this;
+    }
+
+    /**
+     * @param boolean $checkTable
+     * @return Anonymizer
+     */
+    public function setCheckTable($checkTable)
+    {
+        $this->checkTable = $checkTable;
+        return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isCheckTable()
+    {
+        return $this->checkTable;
+    }
+
+    public function getColumnsForChecker()
+    {
+        $columns = [];
+        foreach($this->callbacks['column'] as $column => $_) {
+            $columns[] = $column;
+        }
+
+        $columns = array_diff($columns, $this->getPrimary());
+        return $columns;
     }
 }

@@ -5,6 +5,7 @@ namespace Maris;
 
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Database\Schema\Blueprint;
+use Maris\Anonymizer\Checker;
 use Maris\Anonymizer\RowModifier;
 
 class Manager
@@ -18,10 +19,19 @@ class Manager
         'destination' => null,
         'information_schema' => null
     ];
+
+    /**
+     * @var Anonymizer[]
+     */
     protected $tableChanges = array();
 
     protected $timeStart = null;
     protected $timeSpent = 0;
+
+    /**
+     * @var Checker
+     */
+    protected $checker = null;
 
     public function __construct(\Illuminate\Database\Capsule\Manager $capsule)
     {
@@ -144,8 +154,23 @@ class Manager
     public function run()
     {
         $this->startTime();
-        foreach($this->tableChanges as $table => $anonymizer) {
-            $this->applyChanges($anonymizer);
+        try {
+            foreach($this->tableChanges as $table => $anonymizer) {
+                $this->applyChanges($anonymizer);
+
+                if($anonymizer->isCheckTable() && $columnsForChecker = $anonymizer->getColumnsForChecker()) {
+                    $this->getChecker()
+                        ->setTableName($table)
+                        ->setComparableColumns($columnsForChecker)
+                        ->check()
+                        ->printResults();
+                }
+            }
+        }
+        catch (\Exception $ex)
+        {
+            print("Something went wrong - " . $ex->getMessage());
+            error_log($ex->getMessage());
         }
         $this->endTime();
         return $this;
@@ -160,68 +185,59 @@ class Manager
         $rowModifier = new RowModifier($callbacks);
         $rowModifier->runPrepareCallbacks();
 
-        // Gets data from base tables
-        try
-        {
-            /**
-             * Truncation
-             */
-            if($anonymizer->isTruncateDestinationTable()) {
-                self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
+        /**
+         * Truncation
+         */
+        if($anonymizer->isTruncateDestinationTable()) {
+            self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
+        }
+
+        do {
+
+            $table = $anonymizer->prepareBaseTable();
+            $data = $table->get();
+
+            if(!$data) {
+                break;
             }
 
-            do {
+            $rowModifier->runPrepareChunkedCallbacks();
 
-                $table = $anonymizer->prepareBaseTable();
-                $data = $table->get();
+            // Does all the anonymization as specified in Anonymizer
+            // This is the bottleneck
+            /**
+             * @var array $row
+             */
+            //pr("Data before callbacking");
+            $rowCount = 0;
+            foreach($data as &$row) {
+                $row = $rowModifier->setRow($row)
+                    ->run()
+                    ->getRow();
+                $rowCount++;
+            }
+            //pr($data);
 
-                if(!$data) {
-                    break;
-                }
+            /**
+             * Database related changes
+             */
+            if($anonymizer->isInsert()) {
+                $this->doInsert($anonymizer, $data);
+            } else {
+                $this->doUpdate($anonymizer, $data);
+            }
 
-                $rowModifier->runPrepareChunkedCallbacks();
-
-                // Does all the anonymization as specified in Anonymizer
-                // This is the bottleneck
-                /**
-                 * @var array $row
-                 */
-                //pr("Data before callbacking");
-                $rowCount = 0;
-                foreach($data as &$row) {
-                    $row = $rowModifier->setRow($row)
-                        ->run()
-                        ->getRow();
-                    $rowCount++;
-                }
-                pr($data);
-
-                /**
-                 * Database related changes
-                 */
-                //if($anonymizer->isInsert()) {
-                //    $this->doInsert($anonymizer, $data);
-                //} else {
-                //    $this->doUpdate($anonymizer, $data);
-                //}
-
-                $anonymizer->incrementOffset($rowCount);
-            } while (
-                $data   // has data
-                    && ($anonymizer->getCount() || $anonymizer->getChunkSize()) // and has count or chunksize
-                    && (!$anonymizer->getCount() || $anonymizer->getCount() && $anonymizer->getCount() > $anonymizer->getOffset()) // and don't have count or count is greater than offset
-            );
-        }
-        catch (\Exception $ex)
-        {
-            print("Something went wrong - " . $ex->getMessage());
-            error_log($ex->getMessage());
-            die;
-        }
+            $anonymizer->incrementOffset($rowCount);
+        } while (
+            $data   // has data
+            && ($anonymizer->getCount() || $anonymizer->getChunkSize()) // and has count or chunksize
+            && (!$anonymizer->getCount() || $anonymizer->getCount() && $anonymizer->getCount() > $anonymizer->getOffset()) // and don't have count or count is greater than offset
+        );
     }
 
     protected function doInsert(Anonymizer $anonymizer, $data)
     {
+        //return;
         //insert
         //1) isTruncateTable -> legit;
         //2) !isTruncateTable ->
@@ -296,5 +312,17 @@ class Manager
     public function printTime()
     {
         print("Total time spent: " . round($this->timeSpent,6) . " ms");
+    }
+
+    /**
+     * @return Checker
+     */
+    public function getChecker()
+    {
+        if(!$this->checker) {
+            $this->checker = new Checker();
+        }
+
+        return $this->checker;
     }
 }
