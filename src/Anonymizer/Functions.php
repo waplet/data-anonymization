@@ -13,7 +13,7 @@ trait Functions
      */
     public function replaceWith($replace)
     {
-        if(is_callable($replace)) {
+        if (is_callable($replace)) {
             $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($replace) {
                 $column->setValue(call_user_func($replace, $this->faker));
             };
@@ -33,7 +33,7 @@ trait Functions
      */
     public function nullify($null = true)
     {
-        if($null) {
+        if ($null) {
             $this->replaceWith(null);
         } else {
             $this->replaceWith('');
@@ -63,13 +63,16 @@ trait Functions
     public function shuffleUnique($forceChunked = false)
     {
         $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use ($currentColumnName, $forceChunked) {
+        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use (
+            $currentColumnName,
+            $forceChunked
+        ) {
             $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
                 ->select($currentColumnName)
                 ->distinct();
-            if($forceChunked && $this->getChunkSize()) {
+            if ($forceChunked && $this->getChunkSize()) {
                 $model->limit($this->getChunkSize())
                     ->offset($this->getOffset());
             }
@@ -77,7 +80,7 @@ trait Functions
             shuffle($row->columnData[$currentColumnName]);
         };
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column){
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) {
             $count = count($column->columnData[$column->getCurrentColumn()]);
             $column->setValue($column->columnData[$column->getCurrentColumn()][mt_rand(0, $count - 1)]);
         };
@@ -146,12 +149,13 @@ trait Functions
      */
     public function relativeNoise($percents)
     {
-        if($percents < 0 || $percents > 1) {
+        if ($percents < 0 || $percents > 1) {
             $percents = 0.0;
         }
 
         $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($percents) {
-            $column->setValue(mt_rand(0, 1) ? ($column->getCurrentValue() * (1.0 + $percents)) : ($column->getCurrentValue() * (1.0 - $percents)));
+            $column->setValue(mt_rand(0,
+                1) ? ($column->getCurrentValue() * (1.0 + $percents)) : ($column->getCurrentValue() * (1.0 - $percents)));
         };
 
         return $this;
@@ -167,7 +171,11 @@ trait Functions
         $currentColumnName = $this->currentColumn['name'];
         $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
         $constraint = array_merge(array($currentColumnName), $columns);
-        $this->currentColumn['callbacks'][$prepareType][] = function(RowModifier $row) use ($constraint, $currentColumnName, $shuffle) {
+        $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use (
+            $constraint,
+            $currentColumnName,
+            $shuffle
+        ) {
             $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
@@ -177,7 +185,7 @@ trait Functions
 
             $rows = $model->get();
 
-            if($shuffle) {
+            if ($shuffle) {
                 shuffle($rows);
             } else {
                 /**
@@ -190,15 +198,15 @@ trait Functions
             /**
              * Init empty columns for constraint
              */
-            foreach($constraint as $column) {
+            foreach ($constraint as $column) {
                 $row->columnData[$column] = []; // init
             }
 
             /**
              * Populate columnData with shuffled value but still maintaining constraint
              */
-            foreach($rows as $item) {
-                foreach($constraint as $column) {
+            foreach ($rows as $item) {
+                foreach ($constraint as $column) {
                     $row->columnData[$column][] = $item[$column];
                 }
             }
@@ -207,8 +215,8 @@ trait Functions
              * Remove all calculation which may affect constraint
              * except current ones which makes constraint possible
              */
-            foreach($constraint as $column) {
-                if(!array_key_exists($column, $row->callbacks['column']) || $column == $currentColumnName) {
+            foreach ($constraint as $column) {
+                if (!array_key_exists($column, $row->callbacks['column']) || $column == $currentColumnName) {
                     continue;
                 }
                 unset($row->callbacks['column'][$column]);
@@ -219,7 +227,7 @@ trait Functions
          * Constraint is being populated back
          * @param RowModifier $row
          */
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function(RowModifier $row) use ($constraint) {
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $row) use ($constraint) {
             foreach ($constraint as $column) {
                 $row->setColumnValue($column, array_pop($row->columnData[$column]));
             }
@@ -242,7 +250,7 @@ trait Functions
         $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
         $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use ($currentColumnName) {
 
-            if($this->getChunkSize()) {
+            if ($this->isChunked()) {
                 $subModel = Manager::getCapsule()
                     ->getConnection('base')
                     ->table($this->table);

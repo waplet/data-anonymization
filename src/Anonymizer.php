@@ -233,6 +233,10 @@ class Anonymizer
         return $this->chunkSize;
     }
 
+    public function isChunked()
+    {
+        return (bool)$this->chunkSize;
+    }
     /**
      * @param int $count
      * @return Anonymizer
@@ -240,7 +244,7 @@ class Anonymizer
     public function setCount($count)
     {
         $this->count = $count;
-        if(!$this->getChunkSize()) {
+        if(!$this->isChunked()) {
             $this->setChunkSize($this->count);
         }
         return $this;
@@ -274,7 +278,7 @@ class Anonymizer
 
     public function incrementOffset($number = null)
     {
-        if($this->getChunkSize()) {
+        if($this->isChunked()) {
             $this->offset += $this->chunkSize;
         } else {
             $this->offset += $number;
@@ -286,19 +290,7 @@ class Anonymizer
         $table = Manager::getCapsule('base')
             ->table($this->table);
 
-        if($this->getChunkSize()) {
-            $chunkSize = $this->getChunkSize();
-            $offset = $this->getOffset();
-
-            if($this->getCount()) {
-                if($chunkSize + $offset > $this->getCount()) {
-                    $chunkSize = $this->getCount() - ($offset);
-                }
-            }
-
-            $table->limit($chunkSize)
-                ->offset($offset);
-        }
+        $this->prepareTableWithLimits($table);
 
         return $table;
     }
@@ -309,21 +301,19 @@ class Anonymizer
      */
     public function prepareTableWithLimits(Builder $table) {
 
-        if($this->getChunkSize()) {
-            $chunkSize = $this->getChunkSize();
-            $offset = $this->getOffset();
+        if($this->isChunked()) {
+            $chunkSize = $this->chunkSize;
+            $offset = $this->offset;
 
-            if($this->getCount()) {
-                if($chunkSize + $offset > $this->getCount()) {
-                    $chunkSize = $this->getCount() - ($offset);
+            if($this->count) {
+                if($chunkSize + $offset > $this->count) {
+                    $chunkSize = $this->count - ($offset);
                 }
             }
 
             $table->limit($chunkSize)
                 ->offset($offset);
         }
-
-        return;
     }
 
     /**
@@ -333,7 +323,7 @@ class Anonymizer
      */
     public function fixCount()
     {
-        $this->setCount($this->getOffset() + $this->getCount());
+        $this->setCount($this->offset + $this->count);
         return $this;
     }
 
@@ -362,7 +352,7 @@ class Anonymizer
             $columns[] = $column;
         }
 
-        $columns = array_diff($columns, $this->getPrimary());
+        $columns = array_diff($columns, $this->primaryKey);
         return $columns;
     }
 }
