@@ -4,7 +4,6 @@ namespace Maris;
 
 
 use Illuminate\Database\Query\JoinClause;
-use Illuminate\Database\Schema\Blueprint;
 use Maris\Anonymizer\Checker;
 use Maris\Anonymizer\RowModifier;
 
@@ -14,6 +13,10 @@ class Manager
      * @var \Illuminate\Database\Capsule\Manager
      */
     protected static $capsule = null;
+
+    /**
+     * @var array
+     */
     protected $capsuleConfig = [
         'base' => null,
         'destination' => null,
@@ -23,31 +26,51 @@ class Manager
     /**
      * @var Anonymizer[]
      */
-    protected $tableChanges = array();
+    protected $tableChanges = [];
 
-    protected $timeStart = null;
-    protected $timeSpent = 0;
+    /**
+     * @var int
+     */
+    private $timeStart = 0;
+
+    /**
+     * @var int
+     */
+    private $timeSpent = 0;
 
     /**
      * @var Checker
      */
     protected $checker = null;
 
+    /**
+     * Manager constructor.
+     * @param \Illuminate\Database\Capsule\Manager $capsule
+     */
     public function __construct(\Illuminate\Database\Capsule\Manager $capsule)
     {
         self::setCapsule($capsule);
     }
 
+    /**
+     * @param array $connection
+     */
     public function setPrimary(array $connection)
     {
         $this->capsuleConfig['base'] = $connection;
     }
 
+    /**
+     * @param array $connection
+     */
     public function setDestination(array $connection)
     {
         $this->capsuleConfig['destination'] = $connection;
     }
 
+    /**
+     * @param array $connection
+     */
     public function setInformationSchema(array $connection)
     {
         $this->capsuleConfig['information_schema'] = $connection;
@@ -65,6 +88,9 @@ class Manager
         return self::$capsule->getConnection($connection);
     }
 
+    /**
+     * @param \Illuminate\Database\Capsule\Manager $capsule
+     */
     public static function setCapsule(\Illuminate\Database\Capsule\Manager  $capsule)
     {
         if(!self::$capsule) {
@@ -72,6 +98,10 @@ class Manager
         }
     }
 
+    /**
+     * @return $this
+     * @throws \ErrorException
+     */
     public function init()
     {
         foreach($this->capsuleConfig as $key => $config) {
@@ -88,6 +118,11 @@ class Manager
         return $this;
     }
 
+    /**
+     * @param $name
+     * @param callable $callback
+     * @return $this
+     */
     public function table($name, callable $callback)
     {
         $anonymizer = new Anonymizer($name);
@@ -102,12 +137,10 @@ class Manager
      * Currently works only on mysql
      * @return $this
      */
-    public function prepareTable()
+    protected function prepareTables()
     {
-        // foreach table changes
-        // add missing tables to the destination
         foreach($this->tableChanges as $tableName => $_) {
-            /*
+            /**
              * If there is no base table, skip it.
              */
             if(!self::getCapsule()->schema('base')->hasTable($tableName)) {
@@ -116,18 +149,18 @@ class Manager
             }
 
             if(self::getCapsule()->schema('destination')->hasTable($tableName)) {
-                /*
-                 * If base and destination columns do not fit
+                /**
+                 * If base and destination columns do not match
                  */
-                $tableDiff = $this->getCapsule('information_schema')
+                $tableDiff = self::getCapsule('information_schema')
                     ->table('COLUMNS as c')
                     ->selectRaw('SUM(IF(c2.COLUMN_NAME IS NULL, 1, 0)) as diff')
                     ->join('COLUMNS as c2', function(JoinClause $join) use ($tableName) {
                         $join->type = 'LEFT';
                         $join->on('c2.COLUMN_NAME', '=', 'c.COLUMN_NAME');
-                        $join->where('c2.TABLE_NAME', '=', $this->getCapsule('destination')->getTablePrefix() . $tableName);
+                        $join->where('c2.TABLE_NAME', '=', self::getCapsule('destination')->getTablePrefix() . $tableName);
                     })
-                    ->where('c.TABLE_NAME', '=', $this->getCapsule('base')->getTablePrefix() . $tableName)
+                    ->where('c.TABLE_NAME', '=', self::getCapsule('base')->getTablePrefix() . $tableName)
                     ->value('diff');
                 if(!$tableDiff) {
                     continue;
@@ -136,25 +169,34 @@ class Manager
                 /**
                  * Dropping old table which are not correct
                  */
-                $this->getCapsule('destination')->getSchemaBuilder()->drop($tableName);
+                self::getCapsule('destination')->getSchemaBuilder()->drop($tableName);
             }
 
             /**
              * Creating new table based on real one
              */
-            $createTableSql = $this->getCapsule('base')
-                ->selectOne('SHOW CREATE TABLE ' . self::getCapsule('base')->getTablePrefix() . $tableName)['Create Table'];
+            $createTableSql = self::getCapsule('base')
+                ->selectOne('SHOW CREATE TABLE `' . self::getCapsule('base')->getTablePrefix() . $tableName . '`')['Create Table'];
             $createTableSql = str_replace("CREATE TABLE `" . self::getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . self::getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
-            $this->getCapsule('destination')->statement($createTableSql);
+            self::getCapsule('destination')->statement($createTableSql);
         }
 
         return $this;
     }
 
+
+    /**
+     * @return $this
+     */
     public function run()
     {
         $this->startTime();
         try {
+            /**
+             * Prepares destination table for data anonymization
+             */
+            $this->prepareTables();
+
             foreach($this->tableChanges as $table => $anonymizer) {
                 $this->applyChanges($anonymizer);
 
@@ -170,12 +212,17 @@ class Manager
         catch (\Exception $ex)
         {
             print("Something went wrong - " . $ex->getMessage());
+            pr($ex->getTraceAsString());
             error_log($ex->getMessage());
         }
         $this->endTime();
         return $this;
     }
 
+    /**
+     * @param Anonymizer $anonymizer
+     * @throws \ErrorException
+     */
     protected function applyChanges(Anonymizer $anonymizer)
     {
         // Column Callbacks for each row
@@ -235,6 +282,11 @@ class Manager
         );
     }
 
+    /**
+     * @param Anonymizer $anonymizer
+     * @param $data
+     * @throws \ErrorException
+     */
     protected function doInsert(Anonymizer $anonymizer, $data)
     {
         //return;
@@ -261,6 +313,13 @@ class Manager
             ->insert($data);
     }
 
+    /**
+     * @param Anonymizer $anonymizer
+     * @param $data
+     * @throws \ErrorException
+     * @throws \Exception
+     * @throws \Throwable
+     */
     protected function doUpdate(Anonymizer $anonymizer, $data)
     {
         //update
@@ -298,20 +357,29 @@ class Manager
         }
     }
 
+    /**
+     * Sets start time
+     */
     private function startTime()
     {
         $this->timeStart = microtime(true);
     }
 
+    /**
+     * Calculates time spent
+     */
     private function endTime()
     {
         $this->timeSpent = microtime(true) - $this->timeStart;
-        $this->startTime();
     }
 
+    /**
+     * Prints calculated time
+     */
     public function printTime()
     {
         print("Total time spent: " . round($this->timeSpent,6) . " ms");
+        $this->timeSpent = 0;
     }
 
     /**
