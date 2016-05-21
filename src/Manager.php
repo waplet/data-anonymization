@@ -18,8 +18,8 @@ class Manager
      * @var array
      */
     protected $capsuleConfig = [
-        'base' => null,
-        'destination' => null,
+        'base'               => null,
+        'destination'        => null,
         'information_schema' => null
     ];
 
