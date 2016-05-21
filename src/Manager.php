@@ -54,26 +54,35 @@ class Manager
 
     /**
      * @param array $connection
+     * @return $this
      */
     public function setPrimary(array $connection)
     {
         $this->capsuleConfig['base'] = $connection;
+
+        return $this;
     }
 
     /**
      * @param array $connection
+     * @return $this
      */
     public function setDestination(array $connection)
     {
         $this->capsuleConfig['destination'] = $connection;
+
+        return $this;
     }
 
     /**
      * @param array $connection
+     * @return $this
      */
     public function setInformationSchema(array $connection)
     {
         $this->capsuleConfig['information_schema'] = $connection;
+
+        return $this;
     }
 
     /**
