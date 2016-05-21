@@ -91,7 +91,7 @@ class Manager
      */
     public static function getCapsule($connection = null)
     {
-        if(!$connection) {
+        if (!$connection) {
             return self::$capsule;
         }
         return self::$capsule->getConnection($connection);
@@ -100,9 +100,9 @@ class Manager
     /**
      * @param \Illuminate\Database\Capsule\Manager $capsule
      */
-    public static function setCapsule(\Illuminate\Database\Capsule\Manager  $capsule)
+    public static function setCapsule(\Illuminate\Database\Capsule\Manager $capsule)
     {
-        if(!self::$capsule) {
+        if (!self::$capsule) {
             self::$capsule = $capsule;
         }
     }
@@ -113,8 +113,8 @@ class Manager
      */
     public function init()
     {
-        foreach($this->capsuleConfig as $key => $config) {
-            if($config == null) {
+        foreach ($this->capsuleConfig as $key => $config) {
+            if ($config == null) {
                 throw new \ErrorException("Incorrect state of configs");
             }
             self::$capsule->addConnection($config, $key);
@@ -148,30 +148,31 @@ class Manager
      */
     protected function prepareTables()
     {
-        foreach($this->tableChanges as $tableName => $_) {
+        foreach ($this->tableChanges as $tableName => $_) {
             /**
              * If there is no base table, skip it.
              */
-            if(!self::getCapsule()->schema('base')->hasTable($tableName)) {
+            if (!self::getCapsule()->schema('base')->hasTable($tableName)) {
                 unset($this->tableChanges[$tableName]);
                 continue;
             }
 
-            if(self::getCapsule()->schema('destination')->hasTable($tableName)) {
+            if (self::getCapsule()->schema('destination')->hasTable($tableName)) {
                 /**
                  * If base and destination columns do not match
                  */
                 $tableDiff = self::getCapsule('information_schema')
                     ->table('COLUMNS as c')
                     ->selectRaw('SUM(IF(c2.COLUMN_NAME IS NULL, 1, 0)) as diff')
-                    ->join('COLUMNS as c2', function(JoinClause $join) use ($tableName) {
+                    ->join('COLUMNS as c2', function (JoinClause $join) use ($tableName) {
                         $join->type = 'LEFT';
                         $join->on('c2.COLUMN_NAME', '=', 'c.COLUMN_NAME');
-                        $join->where('c2.TABLE_NAME', '=', self::getCapsule('destination')->getTablePrefix() . $tableName);
+                        $join->where('c2.TABLE_NAME', '=',
+                            self::getCapsule('destination')->getTablePrefix() . $tableName);
                     })
                     ->where('c.TABLE_NAME', '=', self::getCapsule('base')->getTablePrefix() . $tableName)
                     ->value('diff');
-                if(!$tableDiff) {
+                if (!$tableDiff) {
                     continue;
                 }
 
@@ -186,7 +187,9 @@ class Manager
              */
             $createTableSql = self::getCapsule('base')
                 ->selectOne('SHOW CREATE TABLE `' . self::getCapsule('base')->getTablePrefix() . $tableName . '`')['Create Table'];
-            $createTableSql = str_replace("CREATE TABLE `" . self::getCapsule('base')->getTablePrefix() . $tableName . "`", "CREATE TABLE `" . self::getCapsule('destination')->getTablePrefix() . $tableName . "`", $createTableSql);
+            $createTableSql = str_replace("CREATE TABLE `" . self::getCapsule('base')->getTablePrefix() . $tableName . "`",
+                "CREATE TABLE `" . self::getCapsule('destination')->getTablePrefix() . $tableName . "`",
+                $createTableSql);
             self::getCapsule('destination')->statement($createTableSql);
         }
 
@@ -206,10 +209,10 @@ class Manager
              */
             $this->prepareTables();
 
-            foreach($this->tableChanges as $table => $anonymizer) {
+            foreach ($this->tableChanges as $table => $anonymizer) {
                 $this->applyChanges($anonymizer);
 
-                if($anonymizer->isCheckTable() && $columnsForChecker = $anonymizer->getColumnsForChecker()) {
+                if ($anonymizer->isCheckTable() && $columnsForChecker = $anonymizer->getColumnsForChecker()) {
                     $this->getChecker()
                         ->setTableName($table)
                         ->setComparableColumns($columnsForChecker)
@@ -217,9 +220,7 @@ class Manager
                         ->printResults();
                 }
             }
-        }
-        catch (\Exception $ex)
-        {
+        } catch (\Exception $ex) {
             print("Something went wrong - " . $ex->getMessage());
             pr($ex->getTraceAsString());
             error_log($ex->getMessage());
@@ -244,7 +245,7 @@ class Manager
         /**
          * Truncation
          */
-        if($anonymizer->isTruncateDestinationTable()) {
+        if ($anonymizer->isTruncateDestinationTable()) {
             self::getCapsule()->table($anonymizer->table, 'destination')->truncate();
         }
 
@@ -253,7 +254,7 @@ class Manager
             $table = $anonymizer->prepareBaseTable();
             $data = $table->get();
 
-            if(!$data) {
+            if (!$data) {
                 break;
             }
 
@@ -266,7 +267,7 @@ class Manager
              */
             //pr("Data before callbacking");
             $rowCount = 0;
-            foreach($data as &$row) {
+            foreach ($data as &$row) {
                 $row = $rowModifier->setRow($row)
                     ->run()
                     ->getRow();
@@ -277,7 +278,7 @@ class Manager
             /**
              * Database related changes
              */
-            if($anonymizer->isInsert()) {
+            if ($anonymizer->isInsert()) {
                 $this->doInsert($anonymizer, $data);
             } else {
                 $this->doUpdate($anonymizer, $data);
@@ -304,13 +305,13 @@ class Manager
         //2) !isTruncateTable ->
         //    2.a) count primary > 1 throw new exception
         //    2.b)  unset primary
-        if(!$anonymizer->isTruncateDestinationTable()) {
-            if(count($anonymizer->getPrimary()) > 1) {
+        if (!$anonymizer->isTruncateDestinationTable()) {
+            if (count($anonymizer->getPrimary()) > 1) {
                 throw new \ErrorException("Primary can't be constraint if no table truncation");
             } else {
                 $singlePrimaryKey = array_pop($anonymizer->getPrimary());
-                if($singlePrimaryKey) {
-                    foreach($data as &$row) {
+                if ($singlePrimaryKey) {
+                    foreach ($data as &$row) {
                         unset($row[$singlePrimaryKey]);
                     }
                 }
@@ -334,7 +335,7 @@ class Manager
         //update
         //1) isTruncate -> insert
         //2) !isTruncate -> update by primary <=> updateOrInsert
-        if($anonymizer->isTruncateDestinationTable()) {
+        if ($anonymizer->isTruncateDestinationTable()) {
             /**
              * May delete primary keys, but not necessary
              */
@@ -353,10 +354,10 @@ class Manager
                 /**
                  * @var array $row
                  */
-                foreach($data as &$row) {
+                foreach ($data as &$row) {
                     $table = self::getCapsule()->table($anonymizer->table, 'destination');
                     $attributes = [];
-                    foreach($anonymizer->getPrimary() as $key) {
+                    foreach ($anonymizer->getPrimary() as $key) {
                         $attributes[$key] = $row[$key];
                         unset($row[$key]);
                     }
@@ -387,7 +388,7 @@ class Manager
      */
     public function printTime()
     {
-        print("Total time spent: " . round($this->timeSpent,6) . " ms");
+        print("Total time spent: " . round($this->timeSpent, 6) . " ms");
         $this->timeSpent = 0;
     }
 
@@ -396,7 +397,7 @@ class Manager
      */
     public function getChecker()
     {
-        if(!$this->checker) {
+        if (!$this->checker) {
             $this->checker = new Checker();
         }
 
