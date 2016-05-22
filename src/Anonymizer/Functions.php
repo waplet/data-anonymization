@@ -26,6 +26,21 @@ trait Functions
         return $this;
     }
 
+    public function replaceWithOneOf(array $dataset)
+    {
+        if(empty($dataset)) {
+            return $this->replaceWith('');
+        }
+
+        $datasetCount = count($dataset);
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($dataset, $datasetCount) {
+            $randomKey = mt_rand(0, $datasetCount - 1);
+            $column->setValue($dataset[$randomKey]);
+        };
+
+        return $this;
+    }
+
     /**
      * Nullifies string or sets it empty
      * @param bool $null
@@ -133,10 +148,61 @@ trait Functions
      * @param $amplitude
      * @return $this
      */
-    public function noise($amplitude)
+    public function numberVariance($amplitude)
     {
         $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($amplitude) {
             $column->setValue($column->getCurrentValue() + mt_rand(0, $amplitude * 2) - $amplitude); // +- amplitude
+        };
+
+        return $this;
+    }
+
+    /**
+     * Change column's value to some random
+     * @param \DateTime $dateStart
+     * @param \DateTime|null $dateEnd
+     * @param string $format
+     * @return $this
+     * @internal param $modifier
+     */
+    public function dateTimeVariance(\DateTime $dateStart,\DateTime $dateEnd = null, $format = 'Y-m-d H:i:s')
+    {
+        if (!$dateEnd) {
+            $dateEnd = new \DateTime('now');
+        }
+
+        if ($dateStart > $dateEnd) {
+            return $this;
+        }
+
+        $timeStart = $dateStart->getTimestamp();
+        $timeEnd = $dateEnd->getTimestamp();
+
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($timeStart, $timeEnd, $format) {
+            $randomTime = mt_rand($timeStart, $timeEnd);
+            $newDateValue = \DateTime::createFromFormat('u', $randomTime)->format($format);
+            $column->setValue($newDateValue);
+        };
+
+        return $this;
+    }
+
+    /**
+     * @param string $modifier day|month|week , anything else DateTime might read
+     * @param int $amplitude
+     * @param string $format
+     * @return $this
+     */
+    public function dateTimeModifier($modifier = 'day', $amplitude = 1, $format = 'Y-m-d H:i:s')
+    {
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($modifier, $amplitude, $format) {
+            $currentDateTime = \DateTime::createFromFormat($format, $column->getCurrentValue());
+
+            $randomAmplitude = mt_rand(0, $amplitude * 2) - $amplitude;
+            $randomSign = mt_rand(0,1) ? '+' : '-';
+            $newModifier = $randomSign . $randomAmplitude . $modifier;
+            $currentDateTime->modify($newModifier); // +5 day
+            $column->setValue($currentDateTime->format($format));
         };
 
         return $this;
@@ -276,4 +342,6 @@ trait Functions
 
         return $this;
     }
+
+
 }
