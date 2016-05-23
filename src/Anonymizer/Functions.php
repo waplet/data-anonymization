@@ -189,7 +189,7 @@ trait Functions
      * @return $this
      * @internal param $modifier
      */
-    public function dateTimeVariance(\DateTime $dateStart,\DateTime $dateEnd = null, $format = 'Y-m-d H:i:s')
+    public function dateTimeFromInterval(\DateTime $dateStart,\DateTime $dateEnd = null, $format = 'Y-m-d H:i:s')
     {
         if (!$dateEnd) {
             $dateEnd = new \DateTime('now');
@@ -236,17 +236,19 @@ trait Functions
     /**
      * Add relative noise to integer values
      * @param float $percents
+     * @param int $distribution
      * @return $this
      */
-    public function relativeNoise($percents)
+    public function relativeNumberVariance($percents, $distribution = 1)
     {
         if ($percents < 0 || $percents > 1) {
             $percents = 0.0;
         }
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($percents) {
-            $column->setValue(mt_rand(0,
-                1) ? ($column->getCurrentValue() * (1.0 + $percents)) : ($column->getCurrentValue() * (1.0 - $percents)));
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($percents, $distribution) {
+            $amplitude = $percents * 100;
+            $distortionPercent = Helper::distributedRandom($amplitude, $distribution)/100;
+            $column->setValue($column->getCurrentValue() * (1.0 + $distortionPercent));
         };
 
         return $this;
