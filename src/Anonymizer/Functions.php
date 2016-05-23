@@ -41,6 +41,22 @@ trait Functions
         return $this;
     }
 
+    public function replaceYesNo(array $dataset = ['Y', 'N'], $probabilityOfFirst = 0.5)
+    {
+        if (!$probabilityOfFirst) {
+            return $this;
+        }
+
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($dataset, $probabilityOfFirst) {
+            $randomNumber = mt_rand(0, 1/$probabilityOfFirst - 1);
+            $value = $dataset[1];
+            if ($randomNumber == 0) {
+                $value = $dataset[0];
+            }
+            $column->setValue($value);
+        };
+    }
+
     /**
      * Nullifies string or sets it empty
      * @param bool $null
@@ -343,5 +359,52 @@ trait Functions
         return $this;
     }
 
+    public function mask($mask = "", $maskingSymbol = '*')
+    {
+        if (empty($mask)) {
+            return $this;
+        }
 
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($mask, $maskingSymbol) {
+            $maskedString = "";
+            $currentValue = $column->getCurrentValue();
+            for($i = 0;$i < mb_strlen($mask); $i++) {
+                if($mask[$i] == $maskingSymbol) {
+                    $maskedString .= $maskingSymbol;
+                    continue;
+                }
+
+                if(isset($currentValue[$i])) {
+                    $maskedString .= $currentValue[$i];
+                }
+            }
+
+            $column->setValue($maskedString);
+        };
+    }
+
+    public function randomMasking($resultedValues = [])
+    {
+        if (empty($resultedValues)) {
+            $resultedValues = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n",
+                "o","p","q", "r","s","t","u","v","w","x","y","z","0","1","2","3","4","5","6","7","8","9"];
+        }
+
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($resultedValues) {
+            $count = count($resultedValues) - 1;
+            $currentValue = $column->getCurrentValue();
+
+            $newValue = "";
+            for ($i = 0; $i < mb_strlen($currentValue); $i++) {
+                $randomKey = mt_rand(0, $count);
+                if($currentValue[$i] == mb_strtoupper($currentValue[$i])) {
+                    $newValue .= mb_strtoupper($resultedValues[$randomKey]);
+                } else {
+                    $newValue .= $resultedValues[$randomKey];
+                }
+            }
+
+            $column->setValue($newValue);
+        };
+    }
 }
