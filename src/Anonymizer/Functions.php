@@ -3,6 +3,7 @@
 namespace Maris\Anonymizer;
 
 use Maris\Anonymizer;
+use Maris\Helper;
 use Maris\Manager;
 
 trait Functions
@@ -161,13 +162,20 @@ trait Functions
 
     /**
      * Add some noise to integer values
-     * @param $amplitude
+     * @param int $amplitude
+     * @param int $amplitudeDistribution distribution factor for variance 1 => [+-$amplitude; 0]
+     *      2 => +-$amplitude, [+-$amplitude/2; 0] , etc.
      * @return $this
      */
-    public function numberVariance($amplitude)
+    public function numberVariance($amplitude, $amplitudeDistribution = null)
     {
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($amplitude) {
-            $column->setValue($column->getCurrentValue() + mt_rand(0, $amplitude * 2) - $amplitude); // +- amplitude
+        if($amplitude <= 0) {
+            return $this;
+        }
+
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($amplitude, $amplitudeDistribution) {
+            $distortion = Helper::distributedRandom($amplitude, $amplitudeDistribution);
+            $column->setValue($column->getCurrentValue() + $distortion); // +- amplitude
         };
 
         return $this;
@@ -206,18 +214,19 @@ trait Functions
     /**
      * @param string $modifier day|month|week , anything else DateTime might read
      * @param int $amplitude
+     * @param int $amplitudeDistribution
      * @param string $format
      * @return $this
      */
-    public function dateTimeModifier($modifier = 'day', $amplitude = 1, $format = 'Y-m-d H:i:s')
+    public function dateTimeModifier($modifier = 'day', $amplitude = 1, $amplitudeDistribution = null, $format = 'Y-m-d H:i:s')
     {
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($modifier, $amplitude, $format) {
+        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($modifier, $amplitude, $amplitudeDistribution, $format) {
             $currentDateTime = \DateTime::createFromFormat($format, $column->getCurrentValue());
 
-            $randomAmplitude = mt_rand(0, $amplitude * 2) - $amplitude;
+            $randomAmplitude = Helper::distributedRandom($amplitude, $amplitudeDistribution);
             $randomSign = mt_rand(0,1) ? '+' : '-';
-            $newModifier = $randomSign . $randomAmplitude . $modifier;
-            $currentDateTime->modify($newModifier); // +5 day
+            $newModifier = $randomSign . abs($randomAmplitude) . $modifier;
+            $currentDateTime->modify($newModifier);
             $column->setValue($currentDateTime->format($format));
         };
 
