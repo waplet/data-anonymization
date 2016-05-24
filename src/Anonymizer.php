@@ -388,4 +388,25 @@ class Anonymizer
         $columns = array_diff($columns, $this->primaryKey);
         return $columns;
     }
+
+    /**
+     * @param string $type
+     * @param callable $callback
+     * @return $this
+     * @throws \Exception
+     */
+    public function addCallback($type, callable $callback)
+    {
+        if ($type == 'column') {
+            if ($this->currentColumn) {
+                throw new \Exception("Cannot add column callback without column");
+            }
+
+            $this->currentColumn['callbacks'][$type][$this->currentColumn['name']][] = $callback;
+        } else {
+            $this->currentColumn['callbacks'][$type][] = $callback;
+        }
+
+        return $this;
+    }
 }
