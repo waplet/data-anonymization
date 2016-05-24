@@ -398,7 +398,7 @@ class Anonymizer
     public function addCallback($type, callable $callback)
     {
         if ($type == 'column') {
-            if ($this->currentColumn) {
+            if (!$this->currentColumn) {
                 throw new \Exception("Cannot add column callback without column");
             }
 
