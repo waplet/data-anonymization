@@ -15,47 +15,56 @@ trait Functions
     public function replaceWith($replace)
     {
         if (is_callable($replace)) {
-            $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($replace) {
+            $this->addCallback('column', function (RowModifier $column) use ($replace) {
                 $column->setValue(call_user_func($replace, $this->faker));
-            };
+            });
         } else {
-            $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($replace) {
+            $this->addCallback('column', function (RowModifier $column) use ($replace) {
                 $column->setValue($replace);
-            };
+            });
         }
 
         return $this;
     }
 
+    /**
+     * @param array $dataset
+     * @return $this
+     */
     public function replaceWithOneOf(array $dataset)
     {
-        if(empty($dataset)) {
+        if (empty($dataset)) {
             return $this->replaceWith('');
         }
 
         $datasetCount = count($dataset);
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($dataset, $datasetCount) {
+        $this->addCallback('column', function (RowModifier $column) use ($dataset, $datasetCount) {
             $randomKey = mt_rand(0, $datasetCount - 1);
             $column->setValue($dataset[$randomKey]);
-        };
+        });
 
         return $this;
     }
 
+    /**
+     * @param array $dataset
+     * @param float $probabilityOfFirst
+     * @return $this
+     */
     public function replaceYesNo(array $dataset = ['Y', 'N'], $probabilityOfFirst = 0.5)
     {
         if (!$probabilityOfFirst) {
             return $this;
         }
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($dataset, $probabilityOfFirst) {
-            $randomNumber = mt_rand(0, 1/$probabilityOfFirst - 1);
+        $this->addCallback('column', function (RowModifier $column) use ($dataset, $probabilityOfFirst) {
+            $randomNumber = mt_rand(0, 1 / $probabilityOfFirst - 1);
             $value = $dataset[1];
             if ($randomNumber == 0) {
                 $value = $dataset[0];
             }
             $column->setValue($value);
-        };
+        });
     }
 
     /**
@@ -95,10 +104,7 @@ trait Functions
     public function shuffleUnique($forceChunked = false)
     {
         $currentColumnName = $this->currentColumn['name'];
-        $this->currentColumn['callbacks']['prepare'][] = function (RowModifier $row) use (
-            $currentColumnName,
-            $forceChunked
-        ) {
+        $this->addCallback('prepare', function (RowModifier $row) use ($currentColumnName, $forceChunked) {
             $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
@@ -110,12 +116,12 @@ trait Functions
             }
             $row->columnData[$currentColumnName] = $model->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
-        };
+        });
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) {
+        $this->addCallback('column', function (RowModifier $column) {
             $count = count($column->columnData[$column->getCurrentColumn()]);
             $column->setValue($column->columnData[$column->getCurrentColumn()][mt_rand(0, $count - 1)]);
-        };
+        });
 
         return $this;
     }
@@ -130,7 +136,7 @@ trait Functions
     {
         $currentColumnName = $this->currentColumn['name'];
         $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
-        $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use ($currentColumnName) {
+        $this->addCallback($prepareType, function (RowModifier $row) use ($currentColumnName) {
             $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
@@ -140,11 +146,11 @@ trait Functions
 
             $row->columnData[$currentColumnName] = $model->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
-        };
+        });
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($currentColumnName) {
+        $this->addCallback('column', function (RowModifier $column) use ($currentColumnName) {
             $column->setValue(array_pop($column->columnData[$currentColumnName]));
-        };
+        });
 
         return $this;
     }
@@ -156,7 +162,8 @@ trait Functions
      */
     public function shuffleCallable(callable $callback)
     {
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = $callback;
+        $this->addCallback('column', $callback);
+
         return $this;
     }
 
@@ -169,14 +176,14 @@ trait Functions
      */
     public function numberVariance($amplitude, $amplitudeDistribution = null)
     {
-        if($amplitude <= 0) {
+        if ($amplitude <= 0) {
             return $this;
         }
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($amplitude, $amplitudeDistribution) {
+        $this->addCallback('column', function (RowModifier $column) use ($amplitude, $amplitudeDistribution) {
             $distortion = Helper::distributedRandom($amplitude, $amplitudeDistribution);
             $column->setValue($column->getCurrentValue() + $distortion); // +- amplitude
-        };
+        });
 
         return $this;
     }
@@ -189,7 +196,7 @@ trait Functions
      * @return $this
      * @internal param $modifier
      */
-    public function dateTimeFromInterval(\DateTime $dateStart,\DateTime $dateEnd = null, $format = 'Y-m-d H:i:s')
+    public function dateTimeFromInterval(\DateTime $dateStart, \DateTime $dateEnd = null, $format = 'Y-m-d H:i:s')
     {
         if (!$dateEnd) {
             $dateEnd = new \DateTime('now');
@@ -202,11 +209,11 @@ trait Functions
         $timeStart = $dateStart->getTimestamp();
         $timeEnd = $dateEnd->getTimestamp();
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($timeStart, $timeEnd, $format) {
+        $this->addCallback('column', function (RowModifier $column) use ($timeStart, $timeEnd, $format) {
             $randomTime = mt_rand($timeStart, $timeEnd);
             $newDateValue = \DateTime::createFromFormat('u', $randomTime)->format($format);
             $column->setValue($newDateValue);
-        };
+        });
 
         return $this;
     }
@@ -214,21 +221,20 @@ trait Functions
     /**
      * @param string $modifier day|month|week , anything else DateTime might read
      * @param int $amplitude
-     * @param int $amplitudeDistribution
+     * @param int $distribution
      * @param string $format
      * @return $this
+     * @internal param int $amplitudeDistribution
      */
-    public function dateTimeModifier($modifier = 'day', $amplitude = 1, $amplitudeDistribution = null, $format = 'Y-m-d H:i:s')
-    {
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($modifier, $amplitude, $amplitudeDistribution, $format) {
+    public function dateTimeModifier($modifier = 'day', $amplitude = 1, $distribution = null, $format = 'Y-m-d H:i:s') {
+        $this->addCallback('column', function (RowModifier $column) use ($modifier, $amplitude, $distribution, $format) {
             $currentDateTime = \DateTime::createFromFormat($format, $column->getCurrentValue());
-
-            $randomAmplitude = Helper::distributedRandom($amplitude, $amplitudeDistribution);
-            $randomSign = mt_rand(0,1) ? '+' : '-';
+            $randomAmplitude = Helper::distributedRandom($amplitude, $distribution);
+            $randomSign = mt_rand(0, 1) ? '+' : '-';
             $newModifier = $randomSign . abs($randomAmplitude) . $modifier;
             $currentDateTime->modify($newModifier);
             $column->setValue($currentDateTime->format($format));
-        };
+        });
 
         return $this;
     }
@@ -245,11 +251,11 @@ trait Functions
             $percents = 0.0;
         }
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($percents, $distribution) {
+        $this->addCallback('column', function (RowModifier $column) use ($percents, $distribution) {
             $amplitude = $percents * 100;
-            $distortionPercent = Helper::distributedRandom($amplitude, $distribution)/100;
+            $distortionPercent = Helper::distributedRandom($amplitude, $distribution) / 100;
             $column->setValue($column->getCurrentValue() * (1.0 + $distortionPercent));
-        };
+        });
 
         return $this;
     }
@@ -264,11 +270,7 @@ trait Functions
         $currentColumnName = $this->currentColumn['name'];
         $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
         $constraint = array_merge(array($currentColumnName), $columns);
-        $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use (
-            $constraint,
-            $currentColumnName,
-            $shuffle
-        ) {
+        $this->addCallback($prepareType, function (RowModifier $row) use ($constraint, $currentColumnName, $shuffle) {
             $model = Manager::getCapsule()
                 ->getConnection('base')
                 ->table($this->table)
@@ -314,17 +316,17 @@ trait Functions
                 }
                 unset($row->callbacks['column'][$column]);
             }
-        };
+        });
 
         /**
          * Constraint is being populated back
          * @param RowModifier $row
          */
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $row) use ($constraint) {
+        $this->addCallback('column', function (RowModifier $row) use ($constraint) {
             foreach ($constraint as $column) {
                 $row->setColumnValue($column, array_pop($row->columnData[$column]));
             }
-        };
+        });
 
         return $this;
     }
@@ -341,7 +343,7 @@ trait Functions
     {
         $currentColumnName = $this->currentColumn['name'];
         $prepareType = $this->getChunkSize() ? 'prepareChunked' : 'prepare';
-        $this->currentColumn['callbacks'][$prepareType][] = function (RowModifier $row) use ($currentColumnName) {
+        $this->addCallback($prepareType, function (RowModifier $row) use ($currentColumnName) {
 
             if ($this->isChunked()) {
                 $subModel = Manager::getCapsule()
@@ -361,61 +363,80 @@ trait Functions
             }
 
             $row->columnData[$currentColumnName] = $model->pluck('average')[0];
-        };
+        });
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($currentColumnName) {
+        $this->addCallback('column', function (RowModifier $column) use ($currentColumnName) {
             $column->setValue($column->columnData[$currentColumnName]);
-        };
+        });
 
         return $this;
     }
 
+    /**
+     * @param string $mask
+     * @param string $maskingSymbol
+     * @return $this
+     */
     public function mask($mask = "", $maskingSymbol = '*')
     {
         if (empty($mask)) {
             return $this;
         }
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($mask, $maskingSymbol) {
+        $this->addCallback('column', function (RowModifier $column) use ($mask, $maskingSymbol) {
             $maskedString = "";
             $currentValue = $column->getCurrentValue();
-            for($i = 0;$i < mb_strlen($mask); $i++) {
-                if($mask[$i] == $maskingSymbol) {
+            for ($i = 0; $i < mb_strlen($mask); $i++) {
+                if ($mask[$i] == $maskingSymbol) {
                     $maskedString .= $maskingSymbol;
                     continue;
                 }
 
-                if(isset($currentValue[$i])) {
+                if (isset($currentValue[$i])) {
                     $maskedString .= $currentValue[$i];
                 }
             }
 
             $column->setValue($maskedString);
-        };
+        });
     }
 
-    public function randomMasking($resultedValues = [])
+    /**
+     * @param array $replacement
+     * @param string $mask
+     * @param string $maskingSymbol
+     */
+    public function randomMasking($replacement = [], $mask = null, $maskingSymbol = '*')
     {
-        if (empty($resultedValues)) {
-            $resultedValues = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n",
-                "o","p","q", "r","s","t","u","v","w","x","y","z","0","1","2","3","4","5","6","7","8","9"];
+        if (empty($replacement)) {
+            $replacement = [
+                "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r",
+                "s", "t", "u", "v", "w", "x", "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+            ];
         }
 
-        $this->currentColumn['callbacks']['column'][$this->currentColumn['name']][] = function (RowModifier $column) use ($resultedValues) {
-            $count = count($resultedValues) - 1;
+        $this->addCallback('column', function (RowModifier $column) use ($replacement, $mask, $maskingSymbol) {
+            $count = count($replacement) - 1;
             $currentValue = $column->getCurrentValue();
 
             $newValue = "";
             for ($i = 0; $i < mb_strlen($currentValue); $i++) {
+                // Allows masked random masking
+                if ($mask && isset($mask[$i])) {
+                    if ($mask[$i] != $maskingSymbol) {
+                        $newValue .= $currentValue[$i];
+                    }
+                }
+
                 $randomKey = mt_rand(0, $count);
-                if($currentValue[$i] == mb_strtoupper($currentValue[$i])) {
-                    $newValue .= mb_strtoupper($resultedValues[$randomKey]);
+                if ($currentValue[$i] == mb_strtoupper($currentValue[$i])) {
+                    $newValue .= mb_strtoupper($replacement[$randomKey]);
                 } else {
-                    $newValue .= $resultedValues[$randomKey];
+                    $newValue .= $replacement[$randomKey];
                 }
             }
 
             $column->setValue($newValue);
-        };
+        });
     }
 }
