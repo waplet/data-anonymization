@@ -64,11 +64,11 @@ class Anonymizer
      * @var array
      */
     protected $callbacks = [
-        'prepare' => [],
+        'prepare'        => [],
         'prepareChunked' => [],
-        //'beforeColumn' => [],
-        'column' => [],
-        //'after'  => []
+        'column'         => [],
+        //'beforeColumn'   => [],
+        //'after'          => []
     ];
 
     /**
@@ -84,6 +84,11 @@ class Anonymizer
      */
     protected $faker;
 
+    /**
+     * Anonymizer constructor.
+     * @param $table
+     * @param null $faker
+     */
     public function __construct($table, $faker = null)
     {
         $this->table = $table;
@@ -111,19 +116,23 @@ class Anonymizer
      * @param $name
      * @return $this
      */
-    public function column($name) {
-        if($this->currentColumn) {
+    public function column($name)
+    {
+        if ($this->currentColumn) {
             $this->populateColumns();
         }
 
         $this->currentColumn = [
-            'name' => $name,
+            'name'      => $name,
             'callbacks' => [],
         ];
 
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function populateColumns()
     {
         $this->callbacks = array_merge_recursive($this->callbacks, $this->currentColumn['callbacks']);
@@ -140,7 +149,7 @@ class Anonymizer
         /**
          * If last column still left as column, populate it to overall columns
          */
-        if($this->currentColumn) {
+        if ($this->currentColumn) {
             $this->populateColumns();
         }
 
@@ -154,18 +163,21 @@ class Anonymizer
      */
     public function setPrimary($key = ['id'])
     {
-        if(is_string($key)) {
+        if (is_string($key)) {
             $key = [$key];
         }
         $this->primaryKey = $key;
 
 
-        if(count($this->primaryKey) > 1) {
+        if (count($this->primaryKey) > 1) {
             $this->column(array_pop(array_reverse($this->primaryKey)))->setUniqueConstraints($this->primaryKey, false);
         }
         return $this;
     }
 
+    /**
+     * @return array
+     */
     public function getPrimary()
     {
         return $this->primaryKey;
@@ -185,12 +197,19 @@ class Anonymizer
         return $this;
     }
 
+    /**
+     * @param bool $bool
+     * @return $this
+     */
     public function setTruncateDestinationTable($bool = true)
     {
         $this->truncateDestination = $bool;
         return $this;
     }
 
+    /**
+     * @return bool
+     */
     public function isTruncateDestinationTable()
     {
         return $this->truncateDestination;
@@ -234,13 +253,21 @@ class Anonymizer
     }
 
     /**
+     * @return bool
+     */
+    public function isChunked()
+    {
+        return (bool)$this->chunkSize;
+    }
+
+    /**
      * @param int $count
      * @return Anonymizer
      */
     public function setCount($count)
     {
         $this->count = $count;
-        if(!$this->getChunkSize()) {
+        if (!$this->isChunked()) {
             $this->setChunkSize($this->count);
         }
         return $this;
@@ -272,33 +299,27 @@ class Anonymizer
         return $this->offset;
     }
 
+    /**
+     * @param int $number
+     */
     public function incrementOffset($number = null)
     {
-        if($this->getChunkSize()) {
+        if ($this->isChunked()) {
             $this->offset += $this->chunkSize;
         } else {
             $this->offset += $number;
         }
     }
 
+    /**
+     * @return Builder
+     */
     public function prepareBaseTable()
     {
         $table = Manager::getCapsule('base')
             ->table($this->table);
 
-        if($this->getChunkSize()) {
-            $chunkSize = $this->getChunkSize();
-            $offset = $this->getOffset();
-
-            if($this->getCount()) {
-                if($chunkSize + $offset > $this->getCount()) {
-                    $chunkSize = $this->getCount() - ($offset);
-                }
-            }
-
-            $table->limit($chunkSize)
-                ->offset($offset);
-        }
+        $this->prepareTableWithLimits($table);
 
         return $table;
     }
@@ -307,23 +328,22 @@ class Anonymizer
      * Add limit and offset for queries
      * @param Builder $table
      */
-    public function prepareTableWithLimits(Builder $table) {
+    public function prepareTableWithLimits(Builder $table)
+    {
 
-        if($this->getChunkSize()) {
-            $chunkSize = $this->getChunkSize();
-            $offset = $this->getOffset();
+        if ($this->isChunked()) {
+            $chunkSize = $this->chunkSize;
+            $offset = $this->offset;
 
-            if($this->getCount()) {
-                if($chunkSize + $offset > $this->getCount()) {
-                    $chunkSize = $this->getCount() - ($offset);
+            if ($this->count) {
+                if ($chunkSize + $offset > $this->count) {
+                    $chunkSize = $this->count - ($offset);
                 }
             }
 
             $table->limit($chunkSize)
                 ->offset($offset);
         }
-
-        return;
     }
 
     /**
@@ -333,7 +353,7 @@ class Anonymizer
      */
     public function fixCount()
     {
-        $this->setCount($this->getOffset() + $this->getCount());
+        $this->setCount($this->offset + $this->count);
         return $this;
     }
 
@@ -355,14 +375,38 @@ class Anonymizer
         return $this->checkTable;
     }
 
+    /**
+     * @return array
+     */
     public function getColumnsForChecker()
     {
         $columns = [];
-        foreach($this->callbacks['column'] as $column => $_) {
+        foreach ($this->callbacks['column'] as $column => $_) {
             $columns[] = $column;
         }
 
-        $columns = array_diff($columns, $this->getPrimary());
+        $columns = array_diff($columns, $this->primaryKey);
         return $columns;
+    }
+
+    /**
+     * @param string $type
+     * @param callable $callback
+     * @return $this
+     * @throws \Exception
+     */
+    public function addCallback($type, callable $callback)
+    {
+        if ($type == 'column') {
+            if (!$this->currentColumn) {
+                throw new \Exception("Cannot add column callback without column");
+            }
+
+            $this->currentColumn['callbacks'][$type][$this->currentColumn['name']][] = $callback;
+        } else {
+            $this->currentColumn['callbacks'][$type][] = $callback;
+        }
+
+        return $this;
     }
 }

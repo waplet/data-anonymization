@@ -5,34 +5,20 @@ namespace Maris;
 
 class Helper
 {
-    /**
-     * TODO: Remake to just to array to array
-     * @param $array
-     * @param $columnName
-     * @param array $primaryKey
-     * @return array
-     */
-    public static function arrayToPrimarizedArray($array, $columnName, $primaryKey = [])
+    public static function distributedRandom($amplitude, $distribution = null)
     {
-        $result = array();
-
-        foreach($array as $key => $val) {
-            if($primaryKey) {
-                $result[self::compact($primaryKey)] = $val->{$columnName};
-            } else {
-                $result[] = $val->{$columnName};
-            }
+        if(!$distribution) {
+            $distribution = $amplitude;
         }
 
-        return $result;
-    }
+        if($amplitude <= 0) {
+            return 0;
+        }
 
-    /**
-     * @param array $values
-     * @return string of concatenated values
-     */
-    public static function compact(array $values)
-    {
-        return implode("_", $values);
+        if($distribution < 1) {
+            $distribution = 1;
+        }
+
+        return (mt_rand(0, $distribution * 2) - $distribution) * $amplitude/$distribution;
     }
 }
