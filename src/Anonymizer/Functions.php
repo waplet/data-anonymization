@@ -65,6 +65,8 @@ trait Functions
             }
             $column->setValue($value);
         });
+
+        return $this;
     }
 
     /**
@@ -399,6 +401,8 @@ trait Functions
 
             $column->setValue($maskedString);
         });
+
+        return $this;
     }
 
     /**
@@ -425,6 +429,7 @@ trait Functions
                 if ($mask && isset($mask[$i])) {
                     if ($mask[$i] != $maskingSymbol) {
                         $newValue .= $currentValue[$i];
+                        continue;
                     }
                 }
 
