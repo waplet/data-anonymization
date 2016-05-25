@@ -2,7 +2,6 @@
 
 namespace Maris;
 
-
 use Illuminate\Database\Query\JoinClause;
 use Maris\Anonymizer\Checker;
 use Maris\Anonymizer\RowModifier;
@@ -190,6 +189,9 @@ class Manager
             $createTableSql = str_replace("CREATE TABLE `" . self::getCapsule('base')->getTablePrefix() . $tableName . "`",
                 "CREATE TABLE `" . self::getCapsule('destination')->getTablePrefix() . $tableName . "`",
                 $createTableSql);
+
+            // Foreign key constraint removal from create table; Can't do anything about this
+            $createTableSql = preg_replace("#,[\r\n]?\s*?CONSTRAINT `.*?` FOREIGN KEY \(.*?\) REFERENCES `.*?` \(`.*?`\)(|,)?#mi", "", $createTableSql);
             self::getCapsule('destination')->statement($createTableSql);
         }
 
