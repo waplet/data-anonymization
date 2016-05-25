@@ -85,6 +85,12 @@ class Anonymizer
     protected $faker;
 
     /**
+     * Size of maximum size, before splitting in chunks.
+     * May be changed based on Allowed memory size
+     */
+    const MAX_COUNT_SIZE = 10000;
+
+    /**
      * Anonymizer constructor.
      * @param $table
      * @param null $faker
@@ -267,9 +273,14 @@ class Anonymizer
     public function setCount($count)
     {
         $this->count = $count;
+        if($this->count > self::MAX_COUNT_SIZE) {
+            $this->setChunkSize(self::MAX_COUNT_SIZE);
+        }
+
         if (!$this->isChunked()) {
             $this->setChunkSize($this->count);
         }
+
         return $this;
     }
 
