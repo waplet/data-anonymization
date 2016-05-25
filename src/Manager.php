@@ -36,12 +36,18 @@ class Manager
      * @var int
      */
     private $timeSpent = 0;
+    private $totalTimeSpent = 0;
 
     /**
      * @var Checker
      */
     protected $checker = null;
 
+    /**
+     * Size of rows in single insert
+     */
+    const INSERT_CHUNK_SIZE = 2000;
+    
     /**
      * Manager constructor.
      * @param \Illuminate\Database\Capsule\Manager $capsule
@@ -210,6 +216,7 @@ class Manager
              * Prepares destination table for data anonymization
              */
             $this->prepareTables();
+            $this->endTime()->printTime("[Preparing tables]")->startTime();
 
             foreach ($this->tableChanges as $table => $anonymizer) {
                 $this->applyChanges($anonymizer);
@@ -222,6 +229,8 @@ class Manager
                         ->printResults();
                 }
             }
+
+            $this->endTime()->printTime("[Anonymizaion]")->startTime();
         } catch (\Exception $ex) {
             print("Something went wrong - " . $ex->getMessage());
             pr($ex->getTraceAsString());
@@ -252,7 +261,6 @@ class Manager
         }
 
         do {
-
             $table = $anonymizer->prepareBaseTable();
             $data = $table->get();
 
@@ -320,9 +328,19 @@ class Manager
             }
         }
 
-        self::getCapsule('destination')
-            ->table($anonymizer->table)
-            ->insert($data);
+
+
+        if(count($data) > self::INSERT_CHUNK_SIZE) {
+            foreach(array_chunk($data, self::INSERT_CHUNK_SIZE) as $dataset) {
+                self::getCapsule('destination')
+                    ->table($anonymizer->table)
+                    ->insert($dataset);
+            }
+        } else {
+            self::getCapsule('destination')
+                ->table($anonymizer->table)
+                ->insert($data);
+        }
     }
 
     /**
@@ -375,6 +393,8 @@ class Manager
     private function startTime()
     {
         $this->timeStart = microtime(true);
+
+        return $this;
     }
 
     /**
@@ -383,15 +403,32 @@ class Manager
     private function endTime()
     {
         $this->timeSpent = microtime(true) - $this->timeStart;
+        $this->totalTimeSpent += $this->timeSpent;
+
+        return $this;
     }
 
     /**
      * Prints calculated time
+     * @param null $message
+     * @return $this
      */
-    public function printTime()
+    public function printTime($message = null)
     {
-        print("Total time spent: " . round($this->timeSpent, 6) . " ms");
-        $this->timeSpent = 0;
+        if($message) {
+            printf("%-20s%s", $message, " --- ");
+        }
+
+        print("Time spent: " . round($this->timeSpent, 6) . " s\n");
+
+        return $this;
+    }
+
+    public function printTotalTime()
+    {
+        print("Total time spent: " . round($this->totalTimeSpent, 6) . " s\n");
+
+        return $this;
     }
 
     /**
