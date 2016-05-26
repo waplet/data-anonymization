@@ -226,7 +226,6 @@ trait Functions
      * @param int $distribution
      * @param string $format
      * @return $this
-     * @internal param int $amplitudeDistribution
      */
     public function dateTimeModifier($modifier = 'day', $amplitude = 1, $distribution = null, $format = 'Y-m-d H:i:s') {
         $this->addCallback('column', function (RowModifier $column) use ($modifier, $amplitude, $distribution, $format) {
