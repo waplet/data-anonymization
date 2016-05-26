@@ -37,6 +37,7 @@ class Manager
      */
     private $timeSpent = 0;
     private $totalTimeSpent = 0;
+    private $timeSpentMessages = [];
 
     /**
      * @var Checker
@@ -47,7 +48,7 @@ class Manager
      * Size of rows in single insert
      */
     const INSERT_CHUNK_SIZE = 2000;
-    
+
     /**
      * Manager constructor.
      * @param \Illuminate\Database\Capsule\Manager $capsule
@@ -221,6 +222,9 @@ class Manager
             foreach ($this->tableChanges as $table => $anonymizer) {
                 $this->applyChanges($anonymizer);
 
+                // Reset offset for testing purposes
+                $anonymizer->setOffset(0);
+
                 if ($anonymizer->isCheckTable() && $columnsForChecker = $anonymizer->getColumnsForChecker()) {
                     $this->getChecker()
                         ->setTableName($table)
@@ -252,7 +256,6 @@ class Manager
         // Run callbacks which prepare data for columns
         $rowModifier = new RowModifier($callbacks);
         $rowModifier->runPrepareCallbacks();
-
         /**
          * Truncation
          */
@@ -283,7 +286,7 @@ class Manager
                     ->getRow();
                 $rowCount++;
             }
-            //pr($data);
+            $this->endTime()->printTime("[Anonymization]")->startTime();
 
             /**
              * Database related changes
@@ -294,6 +297,7 @@ class Manager
                 $this->doUpdate($anonymizer, $data);
             }
 
+            $this->endTime()->printTime("[Insert time]")->startTime();
             $anonymizer->incrementOffset($rowCount);
         } while (
             $data   // has data
@@ -415,19 +419,28 @@ class Manager
      */
     public function printTime($message = null)
     {
-        if($message) {
-            printf("%-20s%s", $message, " --- ");
-        }
-
-        print("Time spent: " . round($this->timeSpent, 6) . " s\n");
+        $this->timeSpentMessages[] = [
+            "time" => round($this->timeSpent, 6),
+            "message" => $message ? sprintf("%-20s%s", $message, " --- ") : null
+            //"message" => null
+        ];
 
         return $this;
     }
 
+    /**
+     * Prints all "printed" times + Total time
+     * @return $this
+     */
     public function printTotalTime()
     {
-        print("Total time spent: " . round($this->totalTimeSpent, 6) . " s\n");
+        //print("Total time spent: " . round($this->totalTimeSpent, 6) . " s\n");
+        foreach ($this->timeSpentMessages as $time) {
+            printf("%s%s\n", $time['message'], $time['time']);
+        }
+        print(round($this->totalTimeSpent, 6) . "\n");
 
+        $this->timeSpentMessages = [];
         return $this;
     }
 

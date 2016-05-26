@@ -63,6 +63,7 @@ class Checker
             throw new \Exception("Incorrect checker state");
         }
 
+        $this->reset();
         $this->addResult("Starting to check table " . $this->tableName);
         $baseData = $this->loadData('base');
         $destinationData = $this->loadData('destination');
@@ -71,8 +72,8 @@ class Checker
             foreach($destinationData as $destinationRow) {
                 if($this->isDuplicate($baseRow, $destinationRow)) {
                     $this->incrementDuplicateCount();
-                    $this->addResult("Row is duplicate - " . json_encode($baseRow));
-                    $this->addResult(" \t with row - " . json_encode($destinationRow));
+                    $this->addResult("Row is duplicate - " . print_r($baseRow, true));
+                    $this->addResult(" \t with row - " . print_r($destinationRow, true));
                 }
             }
         }
@@ -96,10 +97,13 @@ class Checker
             ->get();
     }
 
-    protected function reset()
+    protected function reset($resetAll = false)
     {
-        $this->tableName = null;
-        $this->comparableColumns = [];
+
+        if ($resetAll) {
+            $this->tableName = null;
+            $this->comparableColumns = [];
+        }
         $this->results = [];
         $this->duplicateCount = 0;
 
@@ -131,5 +135,13 @@ class Checker
     protected function incrementDuplicateCount()
     {
         $this->duplicateCount++;
+    }
+
+    /**
+     * @return int
+     */
+    public function getDuplicateCount()
+    {
+        return $this->duplicateCount;
     }
 }

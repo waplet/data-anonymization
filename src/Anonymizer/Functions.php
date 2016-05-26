@@ -148,6 +148,7 @@ trait Functions
 
             $row->columnData[$currentColumnName] = $model->pluck($currentColumnName);
             shuffle($row->columnData[$currentColumnName]);
+            //Helper::array_shuffle($row->columnData[$currentColumnName]);
         });
 
         $this->addCallback('column', function (RowModifier $column) use ($currentColumnName) {
