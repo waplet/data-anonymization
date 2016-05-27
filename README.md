@@ -37,5 +37,5 @@ Please take responsibility of sensitive data and anonymize them well.
 
    - TODO
    - Usage example can be seen at "index.php" by now.
-   
-   
+  
+ Thanks to https://github.com/arrilot/data-anonymization for giving idea of structure
