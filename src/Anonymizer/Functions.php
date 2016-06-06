@@ -197,7 +197,6 @@ trait Functions
      * @param \DateTime|null $dateEnd
      * @param string $format
      * @return $this
-     * @internal param $modifier
      */
     public function dateTimeFromInterval(\DateTime $dateStart, \DateTime $dateEnd = null, $format = 'Y-m-d H:i:s')
     {
@@ -214,7 +213,7 @@ trait Functions
 
         $this->addCallback('column', function (RowModifier $column) use ($timeStart, $timeEnd, $format) {
             $randomTime = mt_rand($timeStart, $timeEnd);
-            $newDateValue = \DateTime::createFromFormat('u', $randomTime)->format($format);
+            $newDateValue = \DateTime::createFromFormat('U', $randomTime)->format($format);
             $column->setValue($newDateValue);
         });
 
