@@ -1,6 +1,6 @@
-# data-anonymization
+# Data anonymization
 
-Library for Data Anonymization (MySQL DB)
+Library for Data Anonymization through php primary on MySQL DB.
 
 Anonymize your sensitive data. Lot of functionality is available to anonymize your data.
 If you are good at code reading, you might read Anonymizer\Functions.php
@@ -10,6 +10,7 @@ Otherwise, you'll have to wait for Documentation
 
    - php >= 5.6.*
    - mysql >= 5.*
+   - composer
 
 # TO-DO
     
@@ -25,7 +26,16 @@ Each result set must be checked if it fits your enterprises' policy of data anon
 
 Please take responsibility of sensitive data and anonymize them well.
 
+# Installation
+   Run ```composer install``` which will install dependency packages from composer. 
+   Required packages:
+   
+   - Illuminate\Database - https://github.com/illuminate/database
+   - fzaninotto\Faker - https://github.com/fzaninotto/Faker
+
 # Documentation
 
    - TODO
    - Usage example can be seen at "index.php" by now.
+  
+ Thanks to https://github.com/arrilot/data-anonymization for giving idea of structure
