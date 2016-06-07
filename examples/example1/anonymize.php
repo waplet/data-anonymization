@@ -20,9 +20,7 @@ $manager->init()
         $anonymizer->column('reg_place')->setUniqueConstraints(['district_id']);
         $anonymizer->column('first_name')->setUniqueConstraints(['sex']);
         $anonymizer->column('other_names')->nullify(false);
-        $anonymizer->column('birth_date')->dateTimeModifier('week', 10, null, 'Y-m-d')
-            ->dateTimeModifier('day', 3, null, 'Y-m-d');
-        $anonymizer->column('district_id')->shuffleAll();
-        $anonymizer->column('active_date')->dateTimeFromInterval(new DateTime('2014-01-01'), new DateTime('2016-03-01'), 'Y-m-d');
+        $anonymizer->column('birth_date')->dateTimeModifier('week', 10, null, 'Y-m-d');
+        $anonymizer->column('active_date')->dateTimeFromInterval(new DateTime('2015-01-01'), new DateTime('2016-03-01'), 'Y-m-d');
     })
     ->run();
