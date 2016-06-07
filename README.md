@@ -32,10 +32,15 @@ Please take responsibility of sensitive data and anonymize them well.
    
    - Illuminate\Database - https://github.com/illuminate/database
    - fzaninotto\Faker - https://github.com/fzaninotto/Faker
+   
+   Thanks to https://github.com/arrilot/data-anonymization for giving idea of structure
 
 # Documentation
 
    - TODO
    - Usage example can be seen at "index.php" by now.
-  
- Thanks to https://github.com/arrilot/data-anonymization for giving idea of structure
+
+# Example
+
+   Example can be seen in dir "examples"; Currently there is one example with data anonymization. Mysql structure and import are included.
+   Data are taken from Opendata.Riga.lv service - Names of newborns till March, 2016.
